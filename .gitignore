@@ -1,0 +1,3 @@
+# Build output of the Flutter web simulator, copied in by deploy.sh
+landing/public/simulator/
+*.apk
