@@ -12,7 +12,8 @@ cp -r a320_fap/build/web landing/public/simulator
 (cd landing && npm ci && npm run build)
 touch landing/out/.nojekyll   # keep the _next/ folder on GitHub Pages
 
-tmp=$(mktemp -d)
+tmp=.deploy-gh-pages
+rm -rf "$tmp" && mkdir "$tmp"
 cp -r landing/out/. "$tmp"
 git -C "$tmp" init -q -b gh-pages
 git -C "$tmp" add -A
