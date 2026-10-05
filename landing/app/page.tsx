@@ -23,7 +23,7 @@ const features = [
 
 const pages = [
   ["STATUS", "Cabin overview of every system at a glance."],
-  ["AUDIO", "7 PRAM announcements, music, PA gain, CHIME INHIB and chimes."],
+  ["AUDIO", "6 recorded PRAM announcements, music, PA gain, CHIME INHIB and chimes."],
   ["LIGHTS", "BRT 100% · DIM 1 50% · DIM 2 10% per cabin zone."],
   ["DOORS / SLIDES", "8 exits. Open an armed door and the slide deploys."],
   ["TEMP", "FWD / AFT zones: ±2.5 °C fine adjustment of the cockpit setting."],

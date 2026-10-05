@@ -317,16 +317,17 @@ void main() {
       fap.selectPram('safety');
       await fap.playSelectedPram();
       expect(fap.playingAnnouncement, 'safety');
+      expect(audio.calls, contains('announce:safety'));
       await fap.stopSelectedPram();
       expect(fap.playingAnnouncement, isNull);
     });
 
-    test('no voice engine shows a notice', () async {
+    test('announcement that cannot play shows a notice', () async {
       audio.ttsAvailable = false;
       fap.selectPram('welcome');
       await fap.playSelectedPram();
       expect(fap.playingAnnouncement, isNull);
-      expect(fap.notice?.text, contains('VOICE ENGINE'));
+      expect(fap.notice?.text, contains('COULD NOT BE PLAYED'));
     });
 
     test('music toggles', () async {

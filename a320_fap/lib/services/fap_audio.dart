@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 
 /// Airbus cabin chime types.
 ///
@@ -13,8 +12,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 /// * emergency call     – high-low chime three times (cockpit emergency call)
 enum ChimeType { singleHigh, highLow, singleLow, emergency }
 
-/// Offline sound engine. Every sound is synthesised into an in-memory WAV,
-/// so the app ships without audio files and works with no network.
+/// Offline sound engine. Chimes, alarms and music are synthesised into
+/// in-memory WAVs; PRAM announcements are recorded MP3s bundled in
+/// assets/pram/ (same female voice on every device).
 class FapAudio {
   FapAudio() {
     _init();
@@ -26,19 +26,19 @@ class FapAudio {
   final _chimePlayer = AudioPlayer(playerId: 'fap_chime');
   final _alarmPlayer = AudioPlayer(playerId: 'fap_alarm');
   final _musicPlayer = AudioPlayer(playerId: 'fap_music');
-  final _tts = FlutterTts();
+  final _voicePlayer = AudioPlayer(playerId: 'fap_pram');
+  StreamSubscription<void>? _voiceDone;
 
   final _cache = <String, Uint8List>{};
 
   double _paGain = 0.8;
   double _musicLevel = 0.6;
   bool _ducked = false;
-  bool _ttsReady = false;
   bool _speaking = false;
   int _announcementToken = 0;
   String? _alarm;
 
-  /// Called when a spoken PRAM announcement finishes or is stopped.
+  /// Called when a PRAM announcement finishes or is stopped.
   VoidCallback? onAnnouncementDone;
 
   Future<void> _init() async {
@@ -54,25 +54,16 @@ class FapAudio {
     }
     await _musicPlayer.setReleaseMode(ReleaseMode.loop);
     await _alarmPlayer.setReleaseMode(ReleaseMode.loop);
-    try {
-      await _tts.setLanguage('en-US');
-      await _tts.setSpeechRate(kIsWeb ? 0.95 : 0.47);
-      await _tts.setPitch(1.0);
-      await _tts.setVolume(_paGain);
-      _tts.setCompletionHandler(_announcementFinished);
-      _tts.setCancelHandler(_announcementFinished);
-      _tts.setErrorHandler((_) => _announcementFinished());
-      _ttsReady = true;
-    } catch (e) {
-      debugPrint('FapAudio: TTS unavailable: $e');
-    }
+    _voiceDone = _voicePlayer.onPlayerComplete.listen(
+      (_) => _announcementFinished(),
+    );
   }
 
   // ---------------------------------------------------------------- volume
 
   void setPaGain(double v) {
     _paGain = v.clamp(0.0, 1.0);
-    if (_ttsReady) _tts.setVolume(_paGain);
+    _voicePlayer.setVolume(_paGain);
     _chimePlayer.setVolume(_paGain);
   }
 
@@ -175,14 +166,13 @@ class FapAudio {
 
   Future<void> stopMusic() => _musicPlayer.stop();
 
-  /// Plays the PA chime then speaks [script]. Returns false when the
-  /// speech engine is unavailable on this device.
-  Future<bool> announce(String script) async {
-    if (!_ttsReady) return false;
+  /// Plays the PA chime, then the recorded announcement
+  /// `assets/pram/<pramId>.mp3`. Returns false if it cannot be played.
+  Future<bool> announce(String pramId) async {
     final token = ++_announcementToken;
     if (_speaking) {
       _speaking = false;
-      await _tts.stop();
+      await _voicePlayer.stop();
     }
     _ducked = true;
     _applyMusicVolume();
@@ -190,19 +180,26 @@ class FapAudio {
     await Future<void>.delayed(const Duration(milliseconds: 1100));
     if (token != _announcementToken) return true;
     _speaking = true;
-    await _tts.speak(script);
-    return true;
+    try {
+      await _voicePlayer.play(AssetSource('pram/$pramId.mp3'), volume: _paGain);
+      return true;
+    } catch (e) {
+      debugPrint('FapAudio: cannot play announcement $pramId: $e');
+      _speaking = false;
+      _endAnnouncement();
+      return false;
+    }
   }
 
   Future<void> stopAnnouncement() async {
     _announcementToken++;
     final wasActive = _ducked;
     _speaking = false;
-    if (_ttsReady) await _tts.stop();
+    await _voicePlayer.stop();
     if (wasActive) _endAnnouncement();
   }
 
-  /// TTS completion / cancel / error callback.
+  /// The announcement played to the end.
   void _announcementFinished() {
     if (!_speaking) return;
     _speaking = false;
@@ -222,7 +219,8 @@ class FapAudio {
   }
 
   void dispose() {
-    _tts.stop();
+    _voiceDone?.cancel();
+    _voicePlayer.dispose();
     _chimePlayer.dispose();
     _alarmPlayer.dispose();
     _musicPlayer.dispose();

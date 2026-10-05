@@ -34,7 +34,9 @@ class FapSimulatorScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF070D13),
       body: SafeArea(
-        child: Center(
+        // Tight constraints so the panel scales UP on large screens too,
+        // not only down on small ones.
+        child: SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.contain,
             child: SizedBox.fromSize(size: _deviceSize, child: const _Device()),

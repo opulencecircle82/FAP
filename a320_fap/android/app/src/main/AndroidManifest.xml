@@ -42,10 +42,6 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- Offline text-to-speech engine for PRAM announcements. -->
-        <intent>
-            <action android:name="android.intent.action.TTS_SERVICE"/>
-        </intent>
         <!-- Opening the download link from the AISAT hub screen. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>

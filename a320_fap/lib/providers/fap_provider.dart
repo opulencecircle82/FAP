@@ -287,10 +287,10 @@ class FapProvider extends ChangeNotifier {
     }
     _playingAnnouncement = item.id;
     notifyListeners();
-    final ok = await audio.announce(item.script);
+    final ok = await audio.announce(item.id);
     if (!ok) {
       _playingAnnouncement = null;
-      _showNotice('VOICE ENGINE NOT AVAILABLE ON THIS DEVICE');
+      _showNotice('ANNOUNCEMENT COULD NOT BE PLAYED');
       notifyListeners();
     }
   }

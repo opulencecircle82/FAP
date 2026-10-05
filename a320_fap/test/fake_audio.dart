@@ -39,8 +39,8 @@ class FakeAudio implements FapAudio {
   Future<void> stopMusic() async => music = false;
 
   @override
-  Future<bool> announce(String script) async {
-    calls.add('announce');
+  Future<bool> announce(String pramId) async {
+    calls.add('announce:$pramId');
     return ttsAvailable;
   }
 
