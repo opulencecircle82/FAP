@@ -134,44 +134,35 @@ void main() {
       expect(fap.caution.text, contains('LAV D'));
     });
 
-    test('reset with smoke still present re-alarms after 10 s', () {
+    test('SMOKE RESET silences; FAP keeps showing smoke while detected', () {
       fakeAsync((async) {
         final f = FapProvider(audio: audio);
         f.triggerSmoke(Lavatory.a);
-        f.goTo(FapPage.lights);
         f.smokeReset();
         expect(f.smoke(Lavatory.a).alert, SmokeAlert.reset);
+        expect(f.smokeMonitoring, isTrue);
         expect(audio.alarm, isNull);
-        async.elapse(const Duration(seconds: 9));
+        async.elapse(const Duration(seconds: 60));
         expect(f.smoke(Lavatory.a).alert, SmokeAlert.reset);
-        async.elapse(const Duration(seconds: 2));
-        expect(f.smoke(Lavatory.a).alert, SmokeAlert.alarm);
-        expect(audio.alarm, 'smoke');
-        expect(f.page, FapPage.smoke);
         f.dispose();
       });
     });
 
-    test('extinguish during monitoring clears; no re-alarm', () {
-      fakeAsync((async) {
-        final f = FapProvider(audio: audio);
-        f.triggerSmoke(Lavatory.e);
-        f.smokeReset();
-        f.extinguishSmoke(Lavatory.e);
-        expect(f.smoke(Lavatory.e).alert, SmokeAlert.normal);
-        async.elapse(const Duration(seconds: 15));
-        expect(f.smoke(Lavatory.e).alert, SmokeAlert.normal);
-        f.dispose();
-      });
-    });
-
-    test('extinguished while alarming still needs SMOKE RESET', () {
-      fap.triggerSmoke(Lavatory.a);
-      fap.extinguishSmoke(Lavatory.a);
-      expect(fap.smoke(Lavatory.a).alert, SmokeAlert.alarm);
-      fap.smokeReset();
-      expect(fap.smoke(Lavatory.a).alert, SmokeAlert.normal);
+    test('no more smoke: CIDS clears all indications automatically', () {
+      fap.triggerSmoke(Lavatory.e);
+      expect(audio.alarm, 'smoke');
+      fap.extinguishSmoke(Lavatory.e); // without pressing SMOKE RESET
+      expect(fap.smoke(Lavatory.e).alert, SmokeAlert.normal);
+      expect(fap.smokeAlarm, isFalse);
       expect(audio.alarm, isNull);
+    });
+
+    test('one lav cleared, another still alarming keeps the alert', () {
+      fap.triggerSmoke(Lavatory.a);
+      fap.triggerSmoke(Lavatory.d);
+      fap.extinguishSmoke(Lavatory.a);
+      expect(fap.smokeLavs, [Lavatory.d]);
+      expect(audio.alarm, 'smoke');
     });
   });
 
@@ -195,6 +186,54 @@ void main() {
       fap.evacReset();
       expect(fap.evacActive, isFalse);
       expect(audio.alarm, 'smoke');
+    });
+
+    test('selector in CAPT: cabin EVAC CMD gives no cabin evac', () {
+      fap.toggleEvacSelector();
+      fap.toggleEvacGuard();
+      fap.evacCommand();
+      expect(fap.evacActive, isFalse);
+      expect(audio.alarm, isNull);
+      expect(fap.notice?.text, contains('COCKPIT HORN ONLY'));
+    });
+
+    test('cockpit EVAC command activates cabin evac in any position', () {
+      fap.toggleEvacSelector(); // CAPT
+      fap.cockpitEvacCommand();
+      expect(fap.evacActive, isTrue);
+      expect(audio.alarm, 'evac');
+    });
+  });
+
+  group('other A320 functions', () {
+    test('CHIME INHIB blocks chimes', () {
+      fap.toggleChimeInhibit();
+      audio.calls.clear();
+      fap.playChime(ChimeType.singleHigh);
+      expect(audio.calls, isEmpty);
+      fap.toggleChimeInhibit();
+      fap.playChime(ChimeType.emergency);
+      expect(audio.calls, ['chime:emergency']);
+    });
+
+    test('low cabin pressure switches cabin lights to BRT', () {
+      fap.setGeneralLight(LightLevel.dim2);
+      fap.lowCabinPressure();
+      expect(fap.generalLevel, LightLevel.bright);
+    });
+
+    test('PED POWER toggles and FAP RESET restarts for 4 s', () {
+      fakeAsync((async) {
+        final f = FapProvider(audio: audio);
+        f.togglePedPower();
+        expect(f.pedPower, isFalse);
+        f.fapReset();
+        expect(f.fapRestarting, isTrue);
+        async.elapse(const Duration(seconds: 4));
+        expect(f.fapRestarting, isFalse);
+        expect(f.pedPower, isFalse); // cabin state kept
+        f.dispose();
+      });
     });
   });
 
@@ -227,21 +266,33 @@ void main() {
   });
 
   group('temperature', () {
-    test('clamped to 18-30 and actual drifts toward target', () {
+    test('FAP fine adjustment limited to ±2.5 °C of cockpit selection', () {
       fakeAsync((async) {
         final f = FapProvider(audio: audio);
-        for (var i = 0; i < 40; i++) {
+        expect(f.cockpitTemp(TempZone.fwd), 22);
+        for (var i = 0; i < 20; i++) {
           f.adjustTemp(TempZone.fwd, 0.5);
         }
-        expect(f.targetTemp(TempZone.fwd), 30);
-        for (var i = 0; i < 40; i++) {
+        expect(f.fapTrim(TempZone.fwd), 2.5);
+        expect(f.targetTemp(TempZone.fwd), 24.5);
+        expect(f.notice?.text, contains('LIMIT'));
+        for (var i = 0; i < 20; i++) {
           f.adjustTemp(TempZone.fwd, -0.5);
         }
-        expect(f.targetTemp(TempZone.fwd), 18);
+        expect(f.targetTemp(TempZone.fwd), 19.5);
         async.elapse(const Duration(seconds: 70));
-        expect(f.actualTemp(TempZone.fwd), 18);
+        expect(f.actualTemp(TempZone.fwd), 19.5);
         f.dispose();
       });
+    });
+
+    test('cockpit selection 18-30 °C; target never leaves that range', () {
+      for (var i = 0; i < 40; i++) {
+        fap.adjustCockpitTemp(TempZone.aft, 0.5);
+      }
+      expect(fap.cockpitTemp(TempZone.aft), 30);
+      fap.adjustTemp(TempZone.aft, 0.5);
+      expect(fap.targetTemp(TempZone.aft), 30);
     });
   });
 
@@ -311,6 +362,9 @@ void main() {
         f.operateDoor(DoorId.l1);
         f.armAllSlides();
         f.setWaterPreselect(75);
+        f.adjustTemp(TempZone.aft, -1.0);
+        f.adjustCockpitTemp(TempZone.aft, 2.0);
+        f.togglePedPower();
         f.addWaste();
         f.triggerSmoke(Lavatory.a);
         async.elapse(const Duration(seconds: 1));
@@ -323,6 +377,9 @@ void main() {
       expect(restored.generalLevel, LightLevel.dim1);
       expect(restored.allDoorsSecure, isTrue);
       expect(restored.waterPreselect, 75);
+      expect(restored.fapTrim(TempZone.aft), -1.0);
+      expect(restored.cockpitTemp(TempZone.aft), 24.0);
+      expect(restored.pedPower, isFalse);
       expect(restored.wastePct, 35);
       expect(restored.smokeAlarm, isFalse);
       restored.dispose();

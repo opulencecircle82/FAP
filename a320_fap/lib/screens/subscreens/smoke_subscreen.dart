@@ -8,8 +8,9 @@ import '../../widgets/aircraft_diagram.dart';
 import '../../widgets/fap_button.dart';
 
 /// SMOKE DETECTION page: lavatory smoke detector status. The page pops up
-/// automatically on a smoke alert; the SMOKE RESET hard key silences it.
-/// A detector that still senses smoke re-alarms after the reset.
+/// automatically on a smoke alert. SMOKE RESET (hard key or this page)
+/// silences the alert; the FAP keeps showing smoke while it is detected,
+/// and the CIDS clears everything automatically once the smoke is gone.
 class SmokeSubscreen extends StatelessWidget {
   const SmokeSubscreen({super.key});
 
@@ -58,7 +59,7 @@ class _LavCard extends StatelessWidget {
     final s = fap.smoke(lav);
     final (Color color, String text, bool flash) = switch (s.alert) {
       SmokeAlert.alarm => (FapColors.red, 'SMOKE', true),
-      SmokeAlert.reset => (FapColors.amber, 'RESET - MONITORING', false),
+      SmokeAlert.reset => (FapColors.red, 'SMOKE  (RESET)', false),
       SmokeAlert.normal => (FapColors.okGreen, 'NORMAL', false),
     };
 
@@ -122,12 +123,12 @@ class _ResetHint extends StatelessWidget {
     final String text;
     final Color color;
     if (fap.smokeAlarm) {
-      text = 'Press SMOKE RESET hard key to silence the alert.';
+      text = 'Press SMOKE RESET to silence the alert.';
       color = FapColors.red;
     } else if (fap.smokeMonitoring) {
       text =
-          'Detector still monitoring. If smoke remains, the alert '
-          'returns in ${FapConstants.smokeRealarmSeconds} s.';
+          'Alert silenced. Smoke still detected - the indication stays '
+          'until the smoke is gone.';
       color = FapColors.amber;
     } else {
       text = 'All lavatory smoke detectors normal.';
@@ -140,13 +141,29 @@ class _ResetHint extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color.withValues(alpha: 0.7)),
       ),
-      child: Text(
-        text,
-        style: FapText.monoStyle(
-          size: 13,
-          color: color,
-          weight: FontWeight.w700,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: FapText.monoStyle(
+                size: 13,
+                color: color,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FapButton(
+            label: 'SMOKE RESET',
+            width: 130,
+            height: 46,
+            fontSize: 12,
+            tone: fap.smokeAlarm ? FapButtonTone.red : FapButtonTone.normal,
+            flashing: fap.smokeAlarm,
+            onTap: fap.smokeReset,
+          ),
+        ],
       ),
     );
   }
@@ -162,7 +179,7 @@ class _ProcedurePanel extends StatelessWidget {
     'Locate the source. If fire: get the nearest extinguisher and fight it.',
     'Inform the cockpit immediately (interphone).',
     'Keep the door closed after extinguishing; monitor for re-ignition.',
-    'If the alert returns, smoke is still present - repeat.',
+    'When no more smoke is detected, the CIDS clears all indications.',
   ];
 
   @override

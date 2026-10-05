@@ -6,8 +6,9 @@ import '../../providers/fap_provider.dart';
 import '../../theme/fap_theme.dart';
 import '../../widgets/fap_button.dart';
 
-/// CABIN TEMPERATURE page: target temperature per cabin zone (18-30 °C).
-/// The actual temperature moves toward the target as the packs respond.
+/// CABIN TEMPERATURE page. The flight crew selects each zone temperature
+/// in the cockpit (18-30 °C); the cabin crew can fine-adjust it from the
+/// FAP by ±2.5 °C. The actual temperature follows as the packs respond.
 class TemperatureSubscreen extends StatelessWidget {
   const TemperatureSubscreen({super.key});
 
@@ -32,15 +33,62 @@ class TemperatureSubscreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          TrainerBox(
+            label: 'TRAINER  -  COCKPIT ZONE TEMPERATURE SELECTORS',
+            child: Row(
+              children: [
+                for (final z in TempZone.values) ...[
+                  Text(z.label, style: FapText.panelTitle),
+                  const SizedBox(width: 12),
+                  FapButton(
+                    label: '-',
+                    icon: Icons.remove,
+                    width: 56,
+                    height: 38,
+                    enabled: fap.cockpitTemp(z) > FapConstants.minTemp,
+                    onTap: () =>
+                        fap.adjustCockpitTemp(z, -FapConstants.tempStep),
+                  ),
+                  SizedBox(
+                    width: 92,
+                    child: Text(
+                      '${fap.cockpitTemp(z).toStringAsFixed(1)} °C',
+                      textAlign: TextAlign.center,
+                      style: FapText.monoStyle(
+                        size: 16,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  FapButton(
+                    label: '+',
+                    icon: Icons.add,
+                    width: 56,
+                    height: 38,
+                    enabled: fap.cockpitTemp(z) < FapConstants.maxTemp,
+                    onTap: () =>
+                        fap.adjustCockpitTemp(z, FapConstants.tempStep),
+                  ),
+                  const SizedBox(width: 40),
+                ],
+                const Expanded(
+                  child: Text(
+                    'Flight crew selection, 18-30 °C',
+                    style: FapText.label,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 14),
-          FapPanel(
+          const FapPanel(
             title: 'NOTE',
             child: Text(
-              'Cabin zone temperature can be adjusted from the FAP between '
-              '${FapConstants.minTemp.round()} °C and '
-              '${FapConstants.maxTemp.round()} °C in '
-              '${FapConstants.tempStep} °C steps. The flight crew sets the '
-              'basic zone temperature from the cockpit.',
+              'The flight crew selects each zone temperature in the cockpit. '
+              'From the FAP the cabin crew can fine-adjust each zone by '
+              '±2.5 °C in 0.5 °C steps. For a bigger change, ask the flight '
+              'crew.',
               style: FapText.label,
             ),
           ),
@@ -59,22 +107,41 @@ class _ZoneCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final actual = fap.actualTemp(zone);
     final target = fap.targetTemp(zone);
+    final trim = fap.fapTrim(zone);
+    const limit = FapConstants.fapTempTrim;
     final settling = (actual - target).abs() >= 0.05;
+    final sign = trim > 0 ? '+' : (trim < 0 ? '-' : '');
+    final trimText = '$sign${trim.abs().toStringAsFixed(1)}';
+
+    Widget readout(String label, String value, Color color) => Column(
+      children: [
+        Text(label, style: FapText.label.copyWith(fontSize: 11)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: FapText.monoStyle(
+            size: 17,
+            color: color,
+            weight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+
     return FapPanel(
       title: zone.label,
       child: Column(
         children: [
-          const SizedBox(height: 10),
-          Text('ACTUAL', style: FapText.label),
+          const SizedBox(height: 4),
+          const Text('ACTUAL', style: FapText.label),
           Text(
             '${actual.toStringAsFixed(1)} °C',
             style: FapText.monoStyle(
-              size: 54,
+              size: 50,
               color: FapColors.cyan,
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
           Text(
             settling ? (actual < target ? 'WARMING' : 'COOLING') : 'STABLE',
             style: FapText.monoStyle(
@@ -83,9 +150,24 @@ class _ZoneCard extends StatelessWidget {
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 26),
-          Text('SELECTED', style: FapText.label),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              readout(
+                'COCKPIT SEL',
+                '${fap.cockpitTemp(zone).toStringAsFixed(1)}°',
+                FapColors.white,
+              ),
+              readout('FAP ADJ', '$trimText°', FapColors.activeGreen),
+              readout(
+                'TARGET',
+                '${target.toStringAsFixed(1)}°',
+                FapColors.cyan,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -93,59 +175,43 @@ class _ZoneCard extends StatelessWidget {
                 label: '-',
                 icon: Icons.remove,
                 width: 70,
-                height: 56,
-                enabled: target > FapConstants.minTemp,
+                height: 52,
+                enabled: trim > -limit,
                 onTap: () => fap.adjustTemp(zone, -FapConstants.tempStep),
               ),
-              Container(
-                width: 160,
-                height: 56,
-                margin: const EdgeInsets.symmetric(horizontal: 14),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF050B11),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: FapColors.activeGreen),
-                ),
-                child: Text(
-                  '${target.toStringAsFixed(1)} °C',
-                  style: FapText.monoStyle(
-                    size: 26,
-                    color: FapColors.activeGreen,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              const SizedBox(width: 16),
+              _TrimBar(trim: trim),
+              const SizedBox(width: 16),
               FapButton(
                 label: '+',
                 icon: Icons.add,
                 width: 70,
-                height: 56,
-                enabled: target < FapConstants.maxTemp,
+                height: 52,
+                enabled: trim < limit,
                 onTap: () => fap.adjustTemp(zone, FapConstants.tempStep),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          _RangeBar(value: target),
         ],
       ),
     );
   }
 }
 
-class _RangeBar extends StatelessWidget {
-  const _RangeBar({required this.value});
-  final double value;
+/// -2.5 … +2.5 °C fine-adjustment indicator.
+class _TrimBar extends StatelessWidget {
+  const _TrimBar({required this.trim});
+  final double trim;
 
   @override
   Widget build(BuildContext context) {
-    final f =
-        (value - FapConstants.minTemp) /
-        (FapConstants.maxTemp - FapConstants.minTemp);
+    const limit = FapConstants.fapTempTrim;
+    final f = (trim + limit) / (2 * limit);
+    final dim = FapText.monoStyle(size: 11, color: FapColors.textDim);
     return SizedBox(
-      width: 330,
+      width: 220,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           LayoutBuilder(
             builder: (context, c) => Stack(
@@ -156,14 +222,14 @@ class _RangeBar extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(5),
                     gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF2E7DFF),
-                        FapColors.okGreen,
-                        FapColors.amber,
-                        FapColors.red,
-                      ],
+                      colors: [Color(0xFF2E7DFF), Colors.white, FapColors.red],
                     ),
                   ),
+                ),
+                Positioned(
+                  left: c.maxWidth / 2 - 1,
+                  top: -3,
+                  child: Container(width: 2, height: 16, color: Colors.black),
                 ),
                 Positioned(
                   left: c.maxWidth * f - 6,
@@ -172,7 +238,7 @@ class _RangeBar extends StatelessWidget {
                     width: 12,
                     height: 18,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: FapColors.activeGreen,
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(color: Colors.black),
                     ),
@@ -185,14 +251,9 @@ class _RangeBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${FapConstants.minTemp.round()}°',
-                style: FapText.monoStyle(size: 11, color: FapColors.textDim),
-              ),
-              Text(
-                '${FapConstants.maxTemp.round()}°',
-                style: FapText.monoStyle(size: 11, color: FapColors.textDim),
-              ),
+              Text('-$limit', style: dim),
+              Text('0', style: dim),
+              Text('+$limit', style: dim),
             ],
           ),
         ],

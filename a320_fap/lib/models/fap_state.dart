@@ -118,7 +118,8 @@ enum SmokeAlert {
   /// Smoke detected, alert active (red flashing + repetitive chime).
   alarm,
 
-  /// Crew pressed SMOKE RESET; detector is still monitoring.
+  /// Crew pressed SMOKE RESET: aural alert silenced, but the detector
+  /// still senses smoke so the FAP keeps showing it.
   reset,
 }
 
@@ -150,9 +151,9 @@ class FapConstants {
   static const minTemp = 18.0;
   static const maxTemp = 30.0;
   static const tempStep = 0.5;
+
+  /// The FAP can fine-adjust each zone ±2.5 °C around the cockpit setting.
+  static const fapTempTrim = 2.5;
   static const waterPreselect = [25, 50, 75, 100];
   static const screenLockSeconds = 30;
-
-  /// After SMOKE RESET, a detector that still senses smoke re-alarms.
-  static const smokeRealarmSeconds = 10;
 }

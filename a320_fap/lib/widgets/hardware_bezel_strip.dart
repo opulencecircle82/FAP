@@ -8,8 +8,8 @@ import 'blink.dart';
 enum _Led { off, green, amber, red }
 
 /// Physical membrane hard keys below the FAP touchscreen (A320 CIDS):
-/// EVAC CMD (guarded), EVAC RESET, EMER, LIGHTS MAIN ON/OFF, LAV MAINT,
-/// SCREEN 30 SEC LOCK, SMOKE RESET and PAX SYS. Hard keys stay usable
+/// EVAC CMD (guarded), EVAC RESET, EMER, PED POWER, LIGHTS MAIN ON/OFF,
+/// LAV MAINT, SCREEN 30 SEC LOCK, SMOKE RESET, FAP RESET and PAX SYS. Hard keys stay usable
 /// while the touchscreen is locked.
 class HardwareBezelStrip extends StatelessWidget {
   const HardwareBezelStrip({super.key});
@@ -41,7 +41,7 @@ class HardwareBezelStrip extends StatelessWidget {
             onGuard: fap.toggleEvacGuard,
             onPress: fap.evacCommand,
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 16),
           _HardKey(
             label: 'EVAC\nRESET',
             led: flash(_Led.red, fap.evacActive),
@@ -53,13 +53,19 @@ class HardwareBezelStrip extends StatelessWidget {
             led: fap.emerLights ? _Led.amber : _Led.off,
             onTap: fap.toggleEmerLights,
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 16),
+          _HardKey(
+            label: 'PED\nPOWER',
+            led: fap.pedPower ? _Led.green : _Led.off,
+            onTap: fap.togglePedPower,
+          ),
+          const SizedBox(width: 16),
           _HardKey(
             label: 'LIGHTS\nMAIN ON/OFF',
             led: fap.mainLightsOn ? _Led.green : _Led.off,
             onTap: fap.toggleMainLights,
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 16),
           _HardKey(
             label: 'LAV\nMAINT',
             led: fap.lavMaint ? _Led.green : _Led.off,
@@ -71,7 +77,7 @@ class HardwareBezelStrip extends StatelessWidget {
             led: fap.screenLocked ? _Led.amber : _Led.off,
             onTap: fap.screenLock,
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 16),
           _HardKey(
             label: 'SMOKE\nRESET',
             led: fap.smokeAlarm
@@ -79,7 +85,13 @@ class HardwareBezelStrip extends StatelessWidget {
                 : (fap.smokeMonitoring ? _Led.amber : _Led.off),
             onTap: fap.smokeReset,
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 16),
+          _HardKey(
+            label: 'FAP\nRESET',
+            led: fap.fapRestarting ? flash(_Led.amber, true) : _Led.off,
+            onTap: fap.fapReset,
+          ),
+          const SizedBox(width: 16),
           _HardKey(
             label: 'PAX\nSYS',
             led: fap.paxSys ? _Led.green : _Led.off,
@@ -328,7 +340,7 @@ class _Divider extends StatelessWidget {
     return Container(
       width: 2,
       height: 70,
-      margin: const EdgeInsets.symmetric(horizontal: 26),
+      margin: const EdgeInsets.symmetric(horizontal: 18),
       color: const Color(0xFF79828C),
     );
   }

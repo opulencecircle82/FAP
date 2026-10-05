@@ -23,23 +23,25 @@ const features = [
 
 const pages = [
   ["STATUS", "Cabin overview of every system at a glance."],
-  ["AUDIO", "7 PRAM announcements, boarding music, PA gain and chimes."],
+  ["AUDIO", "7 PRAM announcements, music, PA gain, CHIME INHIB and chimes."],
   ["LIGHTS", "BRT 100% · DIM 1 50% · DIM 2 10% per cabin zone."],
   ["DOORS / SLIDES", "8 exits. Open an armed door and the slide deploys."],
-  ["TEMP", "FWD and AFT cabin zones, 18 – 30 °C."],
+  ["TEMP", "FWD / AFT zones: ±2.5 °C fine adjustment of the cockpit setting."],
   ["WATER / WASTE", "200 L potable water, 170 L waste, lavatory status."],
-  ["SMOKE", "LAV A / D / E detectors with re-alarm after reset."],
-  ["SYSTEM INFO", "CIDS directors, fault injection, PA loss drill."],
+  ["SMOKE", "LAV A / D / E detectors, SMOKE RESET, auto-clear when smoke is gone."],
+  ["SYSTEM INFO", "CIDS directors, CAPT / CAPT & PURS selector, fault drills."],
 ];
 
 const hardKeys = [
   ["EVAC CMD", "red"],
   ["EVAC RESET", "red"],
   ["EMER", "amber"],
+  ["PED POWER", "green"],
   ["LIGHTS MAIN", "green"],
   ["LAV MAINT", "green"],
   ["SCREEN LOCK", "amber"],
   ["SMOKE RESET", "red"],
+  ["FAP RESET", "amber"],
   ["PAX SYS", "green"],
 ] as const;
 
@@ -167,7 +169,7 @@ export default async function Home() {
               <div className="mb-3 text-center text-[11px] font-extrabold tracking-[0.3em] text-[#4b535c]">
                 HARD KEYS
               </div>
-              <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
+              <div className="grid grid-cols-5 gap-3 sm:grid-cols-10">
                 {hardKeys.map(([label, led]) => (
                   <div key={label} className="flex flex-col items-center gap-1.5">
                     <span

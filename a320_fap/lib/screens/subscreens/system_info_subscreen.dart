@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/fap_provider.dart';
+import '../../config.dart';
 import '../../theme/fap_theme.dart';
 import '../../widgets/fap_button.dart';
 import '../landing_page_screen.dart';
@@ -46,6 +47,16 @@ class SystemInfoSubscreen extends StatelessWidget {
         'PAX SYSTEMS',
         fap.paxSys ? 'ON' : 'OFF',
         fap.paxSys ? FapColors.okGreen : FapColors.textDim,
+      ),
+      (
+        'PED POWER (IN-SEAT POWER)',
+        fap.pedPower ? 'ON' : 'OFF',
+        fap.pedPower ? FapColors.okGreen : FapColors.textDim,
+      ),
+      (
+        'EVAC SELECTOR (COCKPIT)',
+        fap.evacCaptOnly ? 'CAPT' : 'CAPT & PURS',
+        fap.evacCaptOnly ? FapColors.amber : FapColors.white,
       ),
       ('CAM (CABIN ASSIGNMENT MODULE)', 'A320 STD', FapColors.white),
     ];
@@ -95,7 +106,7 @@ class SystemInfoSubscreen extends StatelessWidget {
                       Text('SOFTWARE', style: FapText.label),
                       const Spacer(),
                       Text(
-                        'AISAT FAP SIM v2.4',
+                        'AISAT FAP SIM v${AppConfig.version}',
                         style: FapText.monoStyle(
                           size: 12,
                           color: FapColors.textDim,
@@ -176,6 +187,40 @@ class SystemInfoSubscreen extends StatelessWidget {
                           'Both directors failed = CIDS 1+2 FAULT.',
                           style: FapText.label,
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TrainerBox(
+                  label: 'TRAINER  -  COCKPIT / AUTOMATIC EVENTS',
+                  child: Row(
+                    children: [
+                      FapButton(
+                        label: fap.evacCaptOnly
+                            ? 'SELECTOR\nCAPT'
+                            : 'SELECTOR\nCAPT & PURS',
+                        width: 150,
+                        height: 46,
+                        fontSize: 12,
+                        active: fap.evacCaptOnly,
+                        onTap: fap.toggleEvacSelector,
+                      ),
+                      const SizedBox(width: 12),
+                      FapButton(
+                        label: 'COCKPIT\nEVAC CMD',
+                        width: 130,
+                        height: 46,
+                        fontSize: 12,
+                        onTap: fap.cockpitEvacCommand,
+                      ),
+                      const SizedBox(width: 12),
+                      FapButton(
+                        label: 'LOW CABIN\nPRESSURE',
+                        width: 130,
+                        height: 46,
+                        fontSize: 12,
+                        onTap: fap.lowCabinPressure,
                       ),
                     ],
                   ),

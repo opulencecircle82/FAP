@@ -2,8 +2,8 @@
 class AppConfig {
   AppConfig._();
 
-  static const version = '2.4';
-  static const apkFileName = 'AISAT_FAP_v2.4.apk';
+  static const version = '2.5';
+  static const apkFileName = 'AISAT_FAP_v2.5.apk';
 
   /// GitHub repository that hosts the releases and the landing page.
   static const repoUrl = 'https://github.com/opulencecircle82/FAP';

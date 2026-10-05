@@ -10,7 +10,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 /// * single high chime – passenger call
 /// * high-low chime    – crew / interphone call
 /// * single low chime  – passenger signs (seat belt / no smoking)
-enum ChimeType { singleHigh, highLow, singleLow }
+/// * emergency call     – high-low chime three times (cockpit emergency call)
+enum ChimeType { singleHigh, highLow, singleLow, emergency }
 
 /// Offline sound engine. Every sound is synthesised into an in-memory WAV,
 /// so the app ships without audio files and works with no network.
@@ -99,6 +100,13 @@ class FapAudio {
           });
         case ChimeType.singleLow:
           return _render(1.6, (b) => _bell(b, 0, _lowHz));
+        case ChimeType.emergency:
+          return _render(4.6, (b) {
+            for (var i = 0; i < 3; i++) {
+              _bell(b, i * 1.35, _highHz);
+              _bell(b, i * 1.35 + 0.55, _lowHz);
+            }
+          });
       }
     });
     await _chimePlayer.stop();

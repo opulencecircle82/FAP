@@ -99,9 +99,20 @@ void main() {
     fap.goTo(FapPage.doors);
     await shot(tester, 'scenario_slide_deployed');
 
-    // Lavatory smoke + EVAC command.
+    // Lavatory smoke, then reset with smoke still present.
     fap.triggerSmoke(Lavatory.d);
     await shot(tester, 'scenario_smoke');
+    fap.triggerSmoke(Lavatory.a);
+    fap.smokeReset();
+    fap.triggerSmoke(Lavatory.d);
+    await shot(tester, 'scenario_smoke_reset');
+
+    // Temperature: FAP fine adjustment around the cockpit selection.
+    fap.adjustTemp(TempZone.fwd, 1.5);
+    fap.adjustCockpitTemp(TempZone.aft, -2);
+    fap.goTo(FapPage.temperature);
+    await shot(tester, 'scenario_temperature');
+    fap.goTo(FapPage.smoke);
     fap.toggleEvacGuard();
     fap.evacCommand();
     await shot(tester, 'scenario_evac');

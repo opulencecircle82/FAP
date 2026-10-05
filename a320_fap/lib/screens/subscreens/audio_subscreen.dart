@@ -234,6 +234,28 @@ class _LevelsPanel extends StatelessWidget {
         children: [
           slider('PA GAIN', fap.paGain, fap.setPaGain),
           slider('MUSIC', fap.musicLevel, fap.setMusicLevel),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              FapButton(
+                label: 'CHIME INHIB',
+                width: 130,
+                height: 40,
+                fontSize: 12,
+                active: fap.chimeInhibit,
+                onTap: fap.toggleChimeInhibit,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  fap.chimeInhibit
+                      ? 'Cabin chimes inhibited'
+                      : 'Cabin chimes active',
+                  style: FapText.label,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -275,7 +297,9 @@ class _ChimePanel extends StatelessWidget {
           const SizedBox(width: 10),
           chime('HIGH-LOW', 'Crew / interphone call', ChimeType.highLow),
           const SizedBox(width: 10),
-          chime('LOW', 'Seat belt / no smoking sign', ChimeType.singleLow),
+          chime('LOW', 'Seat belt / NS signs', ChimeType.singleLow),
+          const SizedBox(width: 10),
+          chime('EMER CALL', 'Cockpit emergency (3x)', ChimeType.emergency),
         ],
       ),
     );

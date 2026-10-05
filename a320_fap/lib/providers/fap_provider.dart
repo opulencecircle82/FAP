@@ -44,7 +44,7 @@ class FapProvider extends ChangeNotifier {
   Timer? _saveTimer;
   Timer? _noticeTimer;
   Timer? _lockTimer;
-  final _realarmTimers = <Lavatory, Timer>{};
+  Timer? _restartTimer;
   bool _disposed = false;
 
   // ------------------------------------------------------------ navigation
@@ -330,7 +330,21 @@ class FapProvider extends ChangeNotifier {
     _changed();
   }
 
+  bool _chimeInhibit = false;
+  bool get chimeInhibit => _chimeInhibit;
+
+  /// CHIME INHIB on the audio page: silences cabin chimes.
+  void toggleChimeInhibit() {
+    _chimeInhibit = !_chimeInhibit;
+    _changed();
+  }
+
   void playChime(ChimeType type) {
+    if (_chimeInhibit) {
+      _showNotice('CHIME INHIBITED - PRESS CHIME INHIB TO RESTORE');
+      notifyListeners();
+      return;
+    }
     if (cidsDown) {
       _showNotice(
         'CIDS 1+2 FAULT - CHIMES NOT AVAILABLE',
@@ -344,32 +358,44 @@ class FapProvider extends ChangeNotifier {
 
   // ------------------------------------------------------------ temperature
 
-  final Map<TempZone, double> _targetTemp = {
+  /// Zone temperature selected by the flight crew (cockpit, 18-30 °C).
+  final Map<TempZone, double> _cockpitTemp = {
     TempZone.fwd: 22.0,
     TempZone.aft: 22.0,
   };
+
+  /// Cabin crew fine adjustment from the FAP (±2.5 °C).
+  final Map<TempZone, double> _fapTrim = {TempZone.fwd: 0.0, TempZone.aft: 0.0};
   final Map<TempZone, double> _actualTemp = {
     TempZone.fwd: 24.0,
     TempZone.aft: 23.5,
   };
 
-  double targetTemp(TempZone z) => _targetTemp[z]!;
+  double cockpitTemp(TempZone z) => _cockpitTemp[z]!;
+  double fapTrim(TempZone z) => _fapTrim[z]!;
+  double targetTemp(TempZone z) => (_cockpitTemp[z]! + _fapTrim[z]!)
+      .clamp(FapConstants.minTemp, FapConstants.maxTemp)
+      .toDouble();
   double actualTemp(TempZone z) => _actualTemp[z]!;
   double get cabinTemp =>
       _actualTemp.values.reduce((a, b) => a + b) / _actualTemp.length;
 
+  /// FAP +/-: fine adjustment around the cockpit selection.
   void adjustTemp(TempZone z, double delta) {
-    final next = (_targetTemp[z]! + delta).clamp(
-      FapConstants.minTemp,
-      FapConstants.maxTemp,
-    );
-    if (next == _targetTemp[z]) {
-      _showNotice(
-        'TEMPERATURE LIMIT ${FapConstants.minTemp.round()}-'
-        '${FapConstants.maxTemp.round()}°C',
-      );
+    const limit = FapConstants.fapTempTrim;
+    final next = (_fapTrim[z]! + delta).clamp(-limit, limit).toDouble();
+    if (next == _fapTrim[z]) {
+      _showNotice('FAP ADJUSTMENT LIMIT ±$limit°C - ASK THE FLIGHT CREW');
     }
-    _targetTemp[z] = next.toDouble();
+    _fapTrim[z] = next;
+    _changed();
+  }
+
+  /// Trainer: the flight crew changes the zone selector in the cockpit.
+  void adjustCockpitTemp(TempZone z, double delta) {
+    _cockpitTemp[z] = (_cockpitTemp[z]! + delta)
+        .clamp(FapConstants.minTemp, FapConstants.maxTemp)
+        .toDouble();
     _changed();
   }
 
@@ -433,57 +459,34 @@ class FapProvider extends ChangeNotifier {
 
   /// Trainer: smoke appears in a lavatory.
   void triggerSmoke(Lavatory l) {
-    _realarmTimers.remove(l)?.cancel();
     _smoke[l] = const LavSmokeStatus(alert: SmokeAlert.alarm, source: true);
     _page = FapPage.smoke; // FAP pops the smoke page automatically.
     _updateAlarmSound();
     notifyListeners();
   }
 
-  /// Trainer: the source of smoke has been extinguished.
+  /// Trainer: the smoke has cleared. With no more smoke detected the CIDS
+  /// resets all visual and aural indications automatically.
   void extinguishSmoke(Lavatory l) {
-    final s = _smoke[l]!;
-    _realarmTimers.remove(l)?.cancel();
-    _smoke[l] = s.alert == SmokeAlert.alarm
-        ? s.copyWith(source: false) // still needs SMOKE RESET
-        : const LavSmokeStatus();
+    _smoke[l] = const LavSmokeStatus();
+    _updateAlarmSound();
     notifyListeners();
   }
 
-  /// SMOKE RESET hard key. A detector that still senses smoke re-alarms.
+  /// SMOKE RESET (hard key or touchscreen): silences the aural alert and
+  /// the cabin indications. The FAP keeps showing the smoke for as long as
+  /// the detector still senses it.
   void smokeReset() {
     var any = false;
     for (final l in Lavatory.values) {
       final s = _smoke[l]!;
       if (s.alert != SmokeAlert.alarm) continue;
       any = true;
-      if (s.source) {
-        _smoke[l] = s.copyWith(alert: SmokeAlert.reset);
-        _realarmTimers[l]?.cancel();
-        _realarmTimers[l] = Timer(
-          const Duration(seconds: FapConstants.smokeRealarmSeconds),
-          () => _realarm(l),
-        );
-      } else {
-        _smoke[l] = const LavSmokeStatus();
-      }
+      _smoke[l] = s.copyWith(alert: SmokeAlert.reset);
     }
     if (!any) _showNotice('NO ACTIVE SMOKE ALERT', color: FapColors.textDim);
     _updateAlarmSound();
     notifyListeners();
-  }
-
-  void _realarm(Lavatory l) {
-    _realarmTimers.remove(l);
-    if (_disposed) return;
-    final s = _smoke[l]!;
-    if (s.alert == SmokeAlert.reset && s.source) {
-      _smoke[l] = s.copyWith(alert: SmokeAlert.alarm);
-      _page = FapPage.smoke;
-      _showNotice('${l.label}: SMOKE STILL DETECTED', color: FapColors.red);
-      _updateAlarmSound();
-      notifyListeners();
-    }
   }
 
   // ------------------------------------------------------------ evacuation
@@ -491,8 +494,28 @@ class FapProvider extends ChangeNotifier {
   bool _evacGuardOpen = false;
   bool _evacActive = false;
 
+  bool _evacCaptOnly = false;
+
   bool get evacGuardOpen => _evacGuardOpen;
   bool get evacActive => _evacActive;
+
+  /// Cockpit CAPT / CAPT & PURS selector. In CAPT, a cabin EVAC CMD only
+  /// sounds the cockpit horn for 3 s; no cabin evacuation alert.
+  bool get evacCaptOnly => _evacCaptOnly;
+
+  /// Trainer: moves the cockpit CAPT / CAPT & PURS selector.
+  void toggleEvacSelector() {
+    _evacCaptOnly = !_evacCaptOnly;
+    notifyListeners();
+  }
+
+  /// Trainer: the flight crew sets EVAC COMMAND ON in the cockpit.
+  void cockpitEvacCommand() {
+    _evacActive = true;
+    _showNotice('EVAC COMMANDED FROM THE COCKPIT', color: FapColors.red);
+    _updateAlarmSound();
+    notifyListeners();
+  }
 
   void toggleEvacGuard() {
     _evacGuardOpen = !_evacGuardOpen;
@@ -506,13 +529,19 @@ class FapProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _evacActive = true;
     _evacGuardOpen = false;
+    if (_evacCaptOnly) {
+      _showNotice('SELECTOR IN CAPT: COCKPIT HORN ONLY (3 S) - NO CABIN EVAC');
+      notifyListeners();
+      return;
+    }
+    _evacActive = true;
     _updateAlarmSound();
     notifyListeners();
   }
 
-  /// EVAC RESET hard key: silences the EVAC tone and clears indications.
+  /// EVAC RESET hard key: silences the EVAC tone at this station and
+  /// clears the EVAC indications.
   void evacReset() {
     if (!_evacActive) {
       _showNotice('NO EVAC COMMAND ACTIVE', color: FapColors.textDim);
@@ -541,6 +570,44 @@ class FapProvider extends ChangeNotifier {
 
   void togglePaxSys() {
     _paxSys = !_paxSys;
+    _changed();
+  }
+
+  bool _pedPower = true;
+  bool get pedPower => _pedPower;
+
+  /// PED POWER hard key: passenger in-seat power supply on/off.
+  void togglePedPower() {
+    _pedPower = !_pedPower;
+    _changed();
+  }
+
+  bool _fapRestarting = false;
+  bool get fapRestarting => _fapRestarting;
+
+  /// FAP-PC RESET hard key: restarts the FAP computer (screen only; the
+  /// cabin systems keep their state).
+  void fapReset() {
+    if (_fapRestarting) return;
+    _fapRestarting = true;
+    _restartTimer?.cancel();
+    _restartTimer = Timer(const Duration(seconds: 4), () {
+      if (_disposed) return;
+      _fapRestarting = false;
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  /// Trainer: low cabin pressure. CIDS switches the cabin lights to BRT.
+  void lowCabinPressure() {
+    for (final z in LightZone.values) {
+      _lights[z] = LightLevel.bright;
+    }
+    _showNotice(
+      'LOW CABIN PRESSURE - CABIN LIGHTS BRT (AUTO)',
+      color: FapColors.red,
+    );
     _changed();
   }
 
@@ -649,7 +716,7 @@ class FapProvider extends ChangeNotifier {
     var moved = false;
     for (final z in TempZone.values) {
       final a = _actualTemp[z]!;
-      final t = _targetTemp[z]!;
+      final t = targetTemp(z);
       if (a == t) continue;
       final diff = t - a;
       _actualTemp[z] = diff.abs() <= 0.1 ? t : a + (diff > 0 ? 0.1 : -0.1);
@@ -671,20 +738,20 @@ class FapProvider extends ChangeNotifier {
     _doors
       ..clear()
       ..addAll(_defaultDoors());
-    _targetTemp.updateAll((_, _) => 22.0);
+    _cockpitTemp.updateAll((_, _) => 22.0);
+    _fapTrim.updateAll((_, _) => 0.0);
     _actualTemp[TempZone.fwd] = 24.0;
     _actualTemp[TempZone.aft] = 23.5;
     _waterPct = 80;
     _wastePct = 25;
     _waterPreselect = 100;
-    for (final t in _realarmTimers.values) {
-      t.cancel();
-    }
-    _realarmTimers.clear();
     _smoke.updateAll((_, _) => const LavSmokeStatus());
     _evacActive = false;
     _evacGuardOpen = false;
+    _evacCaptOnly = false;
     _paxSys = true;
+    _pedPower = true;
+    _chimeInhibit = false;
     _dir1Fault = false;
     _dir2Fault = false;
     _musicPlaying = false;
@@ -735,12 +802,15 @@ class FapProvider extends ChangeNotifier {
     'doors': {for (final e in _doors.entries) e.key.name: e.value.toJson()},
     'paGain': _paGain,
     'musicLevel': _musicLevel,
-    'targetTemp': {for (final e in _targetTemp.entries) e.key.name: e.value},
+    'cockpitTemp': {for (final e in _cockpitTemp.entries) e.key.name: e.value},
+    'fapTrim': {for (final e in _fapTrim.entries) e.key.name: e.value},
     'actualTemp': {for (final e in _actualTemp.entries) e.key.name: e.value},
     'water': _waterPct,
     'waste': _wastePct,
     'preselect': _waterPreselect,
     'paxSys': _paxSys,
+    'pedPower': _pedPower,
+    'chimeInhibit': _chimeInhibit,
   };
 
   void _fromJson(Map<String, dynamic> j) {
@@ -775,21 +845,21 @@ class FapProvider extends ChangeNotifier {
     _paGain = (j['paGain'] as num?)?.toDouble() ?? _paGain;
     _musicLevel = (j['musicLevel'] as num?)?.toDouble() ?? _musicLevel;
 
-    void temps(String key, Map<TempZone, double> into) {
+    void temps(String key, Map<TempZone, double> into, double lo, double hi) {
       final m = j[key] as Map<String, dynamic>? ?? {};
       for (final e in m.entries) {
         final z = byName(TempZone.values, e.key);
         if (z != null && e.value is num) {
-          into[z] = (e.value as num).toDouble().clamp(
-            FapConstants.minTemp,
-            FapConstants.maxTemp,
-          );
+          into[z] = (e.value as num).toDouble().clamp(lo, hi);
         }
       }
     }
 
-    temps('targetTemp', _targetTemp);
-    temps('actualTemp', _actualTemp);
+    const minT = FapConstants.minTemp, maxT = FapConstants.maxTemp;
+    const trim = FapConstants.fapTempTrim;
+    temps('cockpitTemp', _cockpitTemp, minT, maxT);
+    temps('fapTrim', _fapTrim, -trim, trim);
+    temps('actualTemp', _actualTemp, minT, maxT);
     _waterPct = ((j['water'] as num?)?.toDouble() ?? _waterPct)
         .clamp(0, 100)
         .toDouble();
@@ -801,6 +871,8 @@ class FapProvider extends ChangeNotifier {
       _waterPreselect = pre;
     }
     _paxSys = j['paxSys'] as bool? ?? _paxSys;
+    _pedPower = j['pedPower'] as bool? ?? _pedPower;
+    _chimeInhibit = j['chimeInhibit'] as bool? ?? _chimeInhibit;
   }
 
   @override
@@ -810,9 +882,7 @@ class FapProvider extends ChangeNotifier {
     _saveTimer?.cancel();
     _noticeTimer?.cancel();
     _lockTimer?.cancel();
-    for (final t in _realarmTimers.values) {
-      t.cancel();
-    }
+    _restartTimer?.cancel();
     audio.dispose();
     super.dispose();
   }

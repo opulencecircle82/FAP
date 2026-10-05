@@ -163,6 +163,7 @@ class _Touchscreen extends StatelessWidget {
             ),
           ),
           if (fap.screenLocked) _LockOverlay(seconds: fap.lockRemaining),
+          if (fap.fapRestarting) const _RestartOverlay(),
         ],
       ),
     );
@@ -239,6 +240,49 @@ class _TitleBar extends StatelessWidget {
               duration: const Duration(milliseconds: 150),
               child: content,
             ),
+    );
+  }
+}
+
+/// FAP-PC RESET: the panel computer restarts; cabin systems keep running.
+class _RestartOverlay extends StatelessWidget {
+  const _RestartOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(
+                    color: FapColors.cyan,
+                    strokeWidth: 4,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  'FAP RESTARTING',
+                  style: FapText.title.copyWith(color: FapColors.cyan),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Cabin systems are not affected',
+                  style: FapText.label,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
