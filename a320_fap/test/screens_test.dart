@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:aisat_fap/main.dart';
 import 'package:aisat_fap/models/fap_state.dart';
 import 'package:aisat_fap/providers/fap_provider.dart';
-import 'package:aisat_fap/screens/landing_page_screen.dart';
 import 'package:aisat_fap/widgets/top_status_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -166,14 +165,4 @@ void main() {
     expect(fap.page, FapPage.doors);
     await teardown(tester);
   });
-
-  for (final size in const [Size(1440, 900), Size(390, 844)]) {
-    testWidgets('landing page ${size.width.toInt()}w', (tester) async {
-      await boot(tester, size);
-      await tester.binding.handlePushRoute(LandingPageScreen.route);
-      await tester.pumpAndSettle(const Duration(milliseconds: 100));
-      await shot(tester, 'landing_${size.width.toInt()}');
-      await teardown(tester);
-    });
-  }
 }

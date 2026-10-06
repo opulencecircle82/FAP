@@ -5,7 +5,6 @@ import '../../providers/fap_provider.dart';
 import '../../config.dart';
 import '../../theme/fap_theme.dart';
 import '../../widgets/fap_button.dart';
-import '../landing_page_screen.dart';
 
 /// SYSTEM INFO page: CIDS health and messages, plus trainer fault
 /// injection. With both CIDS directors failed, PA, interphone and
@@ -228,22 +227,6 @@ class SystemInfoSubscreen extends StatelessWidget {
                 const Spacer(),
                 Row(
                   children: [
-                    FapButton(
-                      label: 'AISAT APP HUB',
-                      width: 190,
-                      height: 50,
-                      onTap: () {
-                        // Return to the hub if we came from it (web),
-                        // otherwise open it (tablet app).
-                        final nav = Navigator.of(context);
-                        if (nav.canPop()) {
-                          nav.pop();
-                        } else {
-                          nav.pushNamed(LandingPageScreen.route);
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 14),
                     FapButton(
                       label: 'RESET SIMULATOR',
                       width: 190,

@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import 'providers/fap_provider.dart';
 import 'screens/fap_simulator_screen.dart';
-import 'screens/landing_page_screen.dart';
 import 'theme/fap_theme.dart';
 import 'widgets/blink.dart';
 
@@ -43,15 +42,8 @@ class AisatFapApp extends StatelessWidget {
         title: 'AISAT A320 FAP Simulator',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
-        // Web visitors land on the download hub; the tablet app opens
-        // straight into the panel.
-        initialRoute: kIsWeb
-            ? LandingPageScreen.route
-            : FapSimulatorScreen.route,
-        routes: {
-          LandingPageScreen.route: (_) => const LandingPageScreen(),
-          FapSimulatorScreen.route: (_) => const FapSimulatorScreen(),
-        },
+        initialRoute: FapSimulatorScreen.route,
+        routes: {FapSimulatorScreen.route: (_) => const FapSimulatorScreen()},
       ),
     );
   }

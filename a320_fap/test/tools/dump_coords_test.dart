@@ -89,7 +89,44 @@ void main() {
         if (box == null || !box.hasSize) continue;
         sliders.add(rect(box.localToGlobal(Offset.zero) & box.size));
       }
-      out[p.name] = {'texts': texts, 'icons': icons, 'sliders': sliders};
+      // Named regions (panels, cards, diagram, bars) for highlight boxes.
+      const regionTypes = {
+        'TopStatusBar', '_TitleBar', 'BottomTouchNav', 'HardwareBezelStrip',
+        'AircraftDiagram', 'FapPanel', 'TrainerBox', '_DoorCard',
+        '_TileView', '_LavCard', '_ZoneCard', '_Gauge', '_LavTile',
+        '_SummaryBar', '_ResetHint', '_EvacCmdKey', '_HardKey',
+      };
+      final regions = <Map<String, dynamic>>[];
+      for (final e in find
+          .byWidgetPredicate(
+            (w) => regionTypes.contains(w.runtimeType.toString()),
+          )
+          .evaluate()) {
+        final box = e.renderObject as RenderBox?;
+        if (box == null || !box.hasSize) continue;
+        final labels = <String>[];
+        void walk(Element x) {
+          if (labels.length >= 3) return;
+          final w = x.widget;
+          if (w is Text && (w.data ?? '').trim().isNotEmpty) {
+            labels.add(w.data!);
+          }
+          x.visitChildElements(walk);
+        }
+
+        e.visitChildElements(walk);
+        regions.add({
+          'type': e.widget.runtimeType.toString(),
+          'labels': labels,
+          ...rect(box.localToGlobal(Offset.zero) & box.size),
+        });
+      }
+      out[p.name] = {
+        'texts': texts,
+        'icons': icons,
+        'sliders': sliders,
+        'regions': regions,
+      };
     }
 
     File('build/fap_coords.json').writeAsStringSync(
