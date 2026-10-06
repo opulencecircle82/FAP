@@ -105,7 +105,7 @@ class SystemInfoSubscreen extends StatelessWidget {
                       Text('SOFTWARE', style: FapText.label),
                       const Spacer(),
                       Text(
-                        'AISAT FAP SIM v${AppConfig.version}',
+                        '${AppConfig.brand.isEmpty ? '' : '${AppConfig.brand} '}FAP SIM v${AppConfig.version}',
                         style: FapText.monoStyle(
                           size: 12,
                           color: FapColors.textDim,

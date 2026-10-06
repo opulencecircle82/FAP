@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'config.dart';
 import 'providers/fap_provider.dart';
 import 'screens/fap_simulator_screen.dart';
 import 'theme/fap_theme.dart';
@@ -39,7 +40,7 @@ class AisatFapApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => Blink()),
       ],
       child: MaterialApp(
-        title: 'AISAT A320 FAP Simulator',
+        title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         initialRoute: FapSimulatorScreen.route,
