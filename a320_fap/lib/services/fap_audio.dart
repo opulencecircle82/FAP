@@ -21,6 +21,10 @@ class FapAudio {
   }
 
   static const _highHz = 800.0;
+
+  /// Boarding music keeps playing under a PA announcement at this share of
+  /// its level, then returns to full level when the announcement ends.
+  static const _duckFactor = 0.3;
   static const _lowHz = 600.0;
 
   final _chimePlayer = AudioPlayer(playerId: 'fap_chime');
@@ -43,11 +47,24 @@ class FapAudio {
 
   Future<void> _init() async {
     if (!kIsWeb) {
+      // Every player must mix with the others. On Android a player that asks
+      // for audio focus makes the other players lose it, which PAUSES them
+      // (boarding music stopped as soon as a PA announcement started). The
+      // context has to be set on each player: a player copies the global
+      // default when it is created, which is before this runs.
+      final ctx = AudioContextConfig(
+        focus: AudioContextConfigFocus.mixWithOthers,
+      ).build();
       try {
-        await AudioPlayer.global.setAudioContext(
-          AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers)
-              .build(),
-        );
+        await AudioPlayer.global.setAudioContext(ctx);
+        for (final p in [
+          _chimePlayer,
+          _alarmPlayer,
+          _musicPlayer,
+          _voicePlayer,
+        ]) {
+          await p.setAudioContext(ctx);
+        }
       } catch (e) {
         debugPrint('FapAudio: audio context not set: $e');
       }
@@ -73,8 +90,8 @@ class FapAudio {
   }
 
   void _applyMusicVolume() {
-    // A PA announcement always overrides boarding music (ducked to 15 %).
-    _musicPlayer.setVolume(_ducked ? _musicLevel * 0.15 : _musicLevel);
+    // A PA announcement lowers (never stops) the boarding music.
+    _musicPlayer.setVolume(_ducked ? _musicLevel * _duckFactor : _musicLevel);
   }
 
   // ---------------------------------------------------------------- chimes
@@ -160,7 +177,7 @@ class FapAudio {
     _applyMusicVolume();
     await _musicPlayer.play(
       BytesSource(bytes, mimeType: 'audio/wav'),
-      volume: _ducked ? _musicLevel * 0.15 : _musicLevel,
+      volume: _ducked ? _musicLevel * _duckFactor : _musicLevel,
     );
   }
 

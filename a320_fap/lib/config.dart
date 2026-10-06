@@ -2,7 +2,7 @@
 class AppConfig {
   AppConfig._();
 
-  static const version = '2.7';
+  static const version = '2.8';
 
   /// School name shown in the app. Build with `--dart-define=BRAND=` for a
   /// neutral, school-free build (used for the generic tutorial video).
