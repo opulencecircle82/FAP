@@ -22,10 +22,27 @@ class AircraftDiagram extends StatelessWidget {
   Widget build(BuildContext context) {
     final fap = context.watch<FapProvider>();
     final blink = context.watch<Blink>().value;
+    // Cabin zones follow the classes of the active CAM layout, sized by
+    // their seat rows, between the two entry areas.
+    final layout = fap.activeLayout;
+    final zones = <_Zone>[const _Zone(LightZone.fwdEntry, 0, 0.10, '')];
+    for (var i = 0; i < layout.classes.length; i++) {
+      final (first, last) = fap.classRows(i);
+      zones.add(
+        _Zone(
+          FapProvider.zoneOfClass(layout.classes[i]),
+          0.10 + 0.80 * (first - 1) / layout.rows,
+          0.10 + 0.80 * last / layout.rows,
+          layout.classes[i].short,
+        ),
+      );
+    }
+    zones.add(const _Zone(LightZone.aftEntry, 0.90, 1.0, ''));
     return CustomPaint(
       painter: _AircraftPainter(
         mode: mode,
         blink: blink,
+        zones: zones,
         lights: {for (final z in LightZone.values) z: fap.lightLevel(z)},
         windowLights: fap.windowLights,
         readingLights: fap.readingAll,
@@ -39,10 +56,19 @@ class AircraftDiagram extends StatelessWidget {
   }
 }
 
+class _Zone {
+  const _Zone(this.zone, this.from, this.to, this.label);
+  final LightZone zone;
+  final double from;
+  final double to;
+  final String label;
+}
+
 class _AircraftPainter extends CustomPainter {
   _AircraftPainter({
     required this.mode,
     required this.blink,
+    required this.zones,
     required this.lights,
     required this.windowLights,
     required this.readingLights,
@@ -54,6 +80,7 @@ class _AircraftPainter extends CustomPainter {
 
   final DiagramMode mode;
   final bool blink;
+  final List<_Zone> zones;
   final Map<LightZone, LightLevel> lights;
   final bool windowLights;
   final bool readingLights;
@@ -164,30 +191,13 @@ class _AircraftPainter extends CustomPainter {
     // ---- cabin zones
     final inset = 3.5;
     final zoneBounds = <LightZone, Rect>{
-      LightZone.fwdEntry: Rect.fromLTRB(
-        left + inset,
-        at(0.0),
-        right - inset,
-        at(0.10),
-      ),
-      LightZone.fwdCabin: Rect.fromLTRB(
-        left + inset,
-        at(0.10),
-        right - inset,
-        at(0.50),
-      ),
-      LightZone.aftCabin: Rect.fromLTRB(
-        left + inset,
-        at(0.50),
-        right - inset,
-        at(0.90),
-      ),
-      LightZone.aftEntry: Rect.fromLTRB(
-        left + inset,
-        at(0.90),
-        right - inset,
-        at(1.0),
-      ),
+      for (final z in zones)
+        z.zone: Rect.fromLTRB(
+          left + inset,
+          at(z.from),
+          right - inset,
+          at(z.to),
+        ),
     };
 
     for (final e in zoneBounds.entries) {
@@ -203,13 +213,28 @@ class _AircraftPainter extends CustomPainter {
     final sep = Paint()
       ..color = gold.withValues(alpha: 0.7)
       ..strokeWidth = 1;
-    for (final f in [0.10, 0.50, 0.90]) {
+    for (final z in zones.skip(1)) {
       _dashedLine(
         canvas,
-        Offset(left + inset, at(f)),
-        Offset(right - inset, at(f)),
+        Offset(left + inset, at(z.from)),
+        Offset(right - inset, at(z.from)),
         sep,
       );
+    }
+    // class labels (F/C, B/C, T/C)
+    if (mode == DiagramMode.lighting) {
+      for (final z in zones.where((z) => z.label.isNotEmpty)) {
+        final dark =
+            lights[z.zone] == LightLevel.bright ||
+            lights[z.zone] == LightLevel.dim1;
+        _label(
+          canvas,
+          z.label,
+          Offset(cx, at(z.from) + 9),
+          9,
+          dark ? Colors.black : gold,
+        );
+      }
     }
 
     // cockpit windows

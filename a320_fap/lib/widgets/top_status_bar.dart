@@ -63,7 +63,7 @@ class TopStatusBar extends StatelessWidget {
           const SizedBox(width: 16),
           const Icon(Icons.thermostat, color: FapColors.cyan, size: 18),
           Text(
-            '${fap.cabinTemp.toStringAsFixed(0)}°C',
+            fap.formatTemp(fap.cabinTemp, digits: 0).replaceAll(' ', ''),
             style: FapText.monoStyle(
               size: 15,
               color: FapColors.cyan,

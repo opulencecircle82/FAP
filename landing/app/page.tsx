@@ -23,13 +23,18 @@ const features = [
 
 const pages = [
   ["STATUS", "Cabin overview of every system at a glance."],
-  ["AUDIO", "6 recorded PRAM announcements, music, PA gain, CHIME INHIB and chimes."],
+  ["AUDIO", "4 boarding music channels, PRAM with MEMO / PLAY ALL, chimes."],
   ["LIGHTS", "BRT 100% · DIM 1 50% · DIM 2 10% per cabin zone."],
   ["DOORS / SLIDES", "8 exits. Open an armed door and the slide deploys."],
   ["TEMP", "FWD / AFT zones: ±2.5 °C fine adjustment of the cockpit setting."],
   ["WATER / WASTE", "200 L potable water, 170 L waste, lavatory status."],
   ["SMOKE", "LAV A / D / E detectors, SMOKE RESET, auto-clear when smoke is gone."],
+  ["SEAT SETTING", "Inhibit call buttons or reading lights per seat, passenger calls."],
   ["SYSTEM INFO", "CIDS directors, CAPT / CAPT & PURS selector, fault drills."],
+  ["CABIN PROG", "Move cabin zones between classes and save to the CAM."],
+  ["LAYOUT SELECT", "Load 1-, 2- or 3-class CAM layouts."],
+  ["LEVEL ADJUST", "Announcement and chime levels per zone, -6 to +6 dB."],
+  ["SW LOAD / FAP SET-UP", "Software loading, brightness, loudspeaker, key click."],
 ];
 
 const hardKeys = [

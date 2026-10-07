@@ -1,34 +1,24 @@
 /// A pre-recorded announcement (PRAM) entry.
 ///
-/// [isMusic] items play the boarding-music loop; all others are spoken
-/// through the offline text-to-speech engine as a PA announcement.
+/// Each item is a recorded PA announcement in `assets/pram/<id>.mp3`.
 class PramItem {
   const PramItem({
     required this.id,
     required this.code,
     required this.title,
     required this.script,
-    this.isMusic = false,
   });
 
   final String id;
   final String code;
   final String title;
   final String script;
-  final bool isMusic;
 }
 
 const pramLibrary = <PramItem>[
   PramItem(
-    id: 'music',
-    code: '01',
-    title: 'BOARDING MUSIC',
-    script: 'Boarding music loop.',
-    isMusic: true,
-  ),
-  PramItem(
     id: 'welcome',
-    code: '02',
+    code: '010',
     title: 'WELCOME ABOARD',
     script:
         'Good day ladies and gentlemen, and welcome aboard this Airbus '
@@ -38,7 +28,7 @@ const pramLibrary = <PramItem>[
   ),
   PramItem(
     id: 'safety',
-    code: '03',
+    code: '020',
     title: 'SAFETY DEMONSTRATION',
     script:
         'Ladies and gentlemen, please direct your attention to the cabin '
@@ -57,7 +47,7 @@ const pramLibrary = <PramItem>[
   ),
   PramItem(
     id: 'seatbelt',
-    code: '04',
+    code: '030',
     title: 'FASTEN SEAT BELTS',
     script:
         'Ladies and gentlemen, the captain has switched on the fasten '
@@ -66,7 +56,7 @@ const pramLibrary = <PramItem>[
   ),
   PramItem(
     id: 'turbulence',
-    code: '05',
+    code: '040',
     title: 'TURBULENCE ALERT',
     script:
         'Ladies and gentlemen, we are experiencing an area of '
@@ -76,7 +66,7 @@ const pramLibrary = <PramItem>[
   ),
   PramItem(
     id: 'descent',
-    code: '06',
+    code: '050',
     title: 'DESCENT PREPARATION',
     script:
         'Ladies and gentlemen, we have started our descent. Please '
@@ -87,7 +77,7 @@ const pramLibrary = <PramItem>[
   ),
   PramItem(
     id: 'arrival',
-    code: '07',
+    code: '060',
     title: 'ARRIVAL / DISEMBARK',
     script:
         'Ladies and gentlemen, welcome to your destination. Please remain '

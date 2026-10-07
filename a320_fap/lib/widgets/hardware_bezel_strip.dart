@@ -346,25 +346,50 @@ class _Divider extends StatelessWidget {
   }
 }
 
+/// Memory card slots of the FAP lower panel: PRAM (announcements),
+/// CAM (cabin assignment module) and OBRM (on-board replaceable module).
 class _CardSlot extends StatelessWidget {
   const _CardSlot();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    Widget slot(String name, Color tag) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 70,
+            height: 10,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C2127),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: const Color(0xFF5B636C)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            color: tag,
+            child: Text(
+              name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 120,
-          height: 12,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1C2127),
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: const Color(0xFF5B636C)),
-          ),
-        ),
-        const SizedBox(height: 10),
-        const _KeyLabel('FAP DATA CARD'),
+        slot('PRAM', const Color(0xFF2E7D32)),
+        slot('CAM', const Color(0xFF3F51B5)),
+        slot('OBRM', const Color(0xFF37474F)),
       ],
     );
   }

@@ -7,20 +7,26 @@ import '../../theme/fap_theme.dart';
 import '../../widgets/aircraft_diagram.dart';
 import '../../widgets/fap_button.dart';
 
-/// CABIN LIGHTING page: per-zone BRT / DIM 1 / DIM 2, general (all zones),
-/// window and reading lights. Pressing a selected level again switches the
-/// zone off. LIGHTS MAIN ON/OFF, EMER and LAV MAINT are hard keys.
+/// CABIN LIGHTING page: BRT / DIM 1 / DIM 2 for the entry areas and for
+/// each passenger class of the active CAM layout, general (all zones),
+/// MAIN ON/OFF, window (WDO) and aisle lights, and reading lights
+/// (R/L SET / R/L RESET). Pressing a selected level again switches the zone
+/// off. EMER and LAV MAINT are hard keys.
 class LightingSubscreen extends StatelessWidget {
   const LightingSubscreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final fap = context.watch<FapProvider>();
+    final classZones = fap.activeZones
+        .where((z) => z != LightZone.fwdEntry && z != LightZone.aftEntry)
+        .toList();
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: const [
-          SizedBox(
+        children: [
+          const SizedBox(
             width: 300,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -33,32 +39,32 @@ class LightingSubscreen extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: 24),
-          SizedBox(
+          const SizedBox(width: 24),
+          const SizedBox(
             width: 170,
             child: AircraftDiagram(mode: DiagramMode.lighting),
           ),
-          SizedBox(width: 24),
+          const SizedBox(width: 24),
           SizedBox(
             width: 330,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _GeneralPanel(),
-                SizedBox(height: 18),
-                _ZonePanel(LightZone.fwdCabin),
-                Spacer(),
-                _ZonePanel(LightZone.aftCabin),
+                const _GeneralPanel(),
+                for (final z in classZones) ...[
+                  const SizedBox(height: 12),
+                  _ZonePanel(z),
+                ],
               ],
             ),
           ),
-          SizedBox(width: 24),
-          Expanded(
+          const SizedBox(width: 24),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _WindowPanel(),
-                SizedBox(height: 18),
+                _CabinLightsPanel(),
+                SizedBox(height: 14),
                 _ReadingPanel(),
                 Spacer(),
                 _HardKeyStatusPanel(),
@@ -131,27 +137,36 @@ class _GeneralPanel extends StatelessWidget {
   }
 }
 
-class _WindowPanel extends StatelessWidget {
-  const _WindowPanel();
+class _CabinLightsPanel extends StatelessWidget {
+  const _CabinLightsPanel();
 
   @override
   Widget build(BuildContext context) {
     final fap = context.watch<FapProvider>();
     return FapPanel(
-      title: 'WINDOW',
+      title: 'MAIN  /  WINDOW  /  AISLE',
       child: Row(
         children: [
           FapButton(
-            label: 'ON',
+            label: 'MAIN\nON/OFF',
+            width: 96,
+            fontSize: 12,
+            active: fap.mainLightsOn,
+            onTap: fap.toggleMainLights,
+          ),
+          const SizedBox(width: 10),
+          FapButton(
+            label: 'WDO',
+            width: 96,
             active: fap.windowLights,
             onTap: fap.toggleWindowLights,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              fap.windowLights ? 'Window lights ON' : 'Window lights OFF',
-              style: FapText.label,
-            ),
+          const SizedBox(width: 10),
+          FapButton(
+            label: 'AISLE',
+            width: 96,
+            active: fap.aisleLights,
+            onTap: fap.toggleAisleLights,
           ),
         ],
       ),
@@ -167,38 +182,47 @@ class _ReadingPanel extends StatelessWidget {
     final fap = context.watch<FapProvider>();
     return FapPanel(
       title: 'READING LIGHTS',
+      trailing: StatusTag(
+        fap.readingAll
+            ? (fap.readingInhibitedCount > 0
+                  ? 'ON  (${fap.readingInhibitedCount} INHIB)'
+                  : 'ON')
+            : 'OFF',
+        fap.readingAll ? FapColors.okGreen : FapColors.textDim,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               FapButton(
-                label: 'ALL',
+                label: 'R/L\nSET',
+                width: 96,
+                fontSize: 12,
                 active: fap.readingAll,
-                onTap: fap.toggleReadingAll,
+                onTap: () => fap.readingLightsSet(true),
               ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Text(
-                  'Passenger reading lights (all seats)',
-                  style: FapText.label,
-                ),
+              const SizedBox(width: 10),
+              FapButton(
+                label: 'R/L\nRESET',
+                width: 96,
+                fontSize: 12,
+                onTap: () => fap.readingLightsSet(false),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
+              const SizedBox(width: 10),
               FapButton(
                 label: 'ATTND',
+                width: 96,
                 active: fap.attWorkLights,
                 onTap: fap.toggleAttWorkLights,
               ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Text('Attendant work lights', style: FapText.label),
-              ),
             ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'R/L SET: all passenger reading lights on. R/L RESET: all off. '
+            'ATTND: attendant work lights.',
+            style: FapText.label,
           ),
         ],
       ),

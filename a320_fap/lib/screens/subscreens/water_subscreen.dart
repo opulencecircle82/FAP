@@ -101,6 +101,20 @@ class WaterSubscreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FapButton(
+                    label: 'RESET\nWARN',
+                    width: 120,
+                    height: 50,
+                    fontSize: 12,
+                    tone: fap.lavsInop || fap.waterLow
+                        ? FapButtonTone.amber
+                        : FapButtonTone.normal,
+                    onTap: fap.resetWarn,
+                  ),
+                ),
                 const Spacer(),
                 TrainerBox(
                   label: 'TRAINER  -  GROUND SERVICE / FLIGHT',

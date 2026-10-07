@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/fap_provider.dart';
 import '../theme/fap_theme.dart';
 import 'blink.dart';
 
@@ -66,7 +67,12 @@ class FapButton extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: usable ? onTap : null,
+          onTap: usable
+              ? () {
+                  _keyClick(context);
+                  onTap!();
+                }
+              : null,
           borderRadius: BorderRadius.circular(4),
           splashColor: FapColors.white.withValues(alpha: 0.25),
           child: Ink(
@@ -126,6 +132,13 @@ class FapButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Touchscreen click (FAP SET-UP); silently skipped outside the app tree.
+void _keyClick(BuildContext context) {
+  try {
+    context.read<FapProvider>().keyClick();
+  } catch (_) {}
 }
 
 /// Slate CIDS container panel with a title strip.

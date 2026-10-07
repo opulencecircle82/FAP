@@ -1,3 +1,4 @@
+import 'package:aisat_fap/models/cabin_setup.dart';
 import 'package:aisat_fap/services/fap_audio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -33,7 +34,31 @@ class FakeAudio implements FapAudio {
   }
 
   @override
-  Future<void> startMusic() async => music = true;
+  Future<void> startMusic([BgmChannel channel = BgmChannel.classic]) async {
+    music = true;
+    musicChannel = channel;
+    calls.add('music:${channel.name}');
+  }
+
+  @override
+  BgmChannel? musicChannel;
+
+  @override
+  Future<void> click() async => calls.add('click');
+
+  double? master;
+  double? announceDb;
+
+  @override
+  void setOutput({
+    required double loudspeaker,
+    required bool muted,
+    required double announceDb,
+    required double chimeDb,
+  }) {
+    master = muted ? 0 : loudspeaker;
+    this.announceDb = announceDb;
+  }
 
   @override
   Future<void> stopMusic() async => music = false;

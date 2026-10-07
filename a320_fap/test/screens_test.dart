@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:aisat_fap/main.dart';
 import 'package:aisat_fap/models/fap_state.dart';
@@ -51,7 +52,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
-    fap = FapProvider(audio: FakeAudio());
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
     await tester.pumpWidget(AisatFapApp(fap: fap));
     await tester.pump(const Duration(milliseconds: 300));
   }
@@ -78,6 +79,108 @@ void main() {
       fap.goTo(p);
       await shot(tester, 'page_${p.name}');
     }
+    // Protected pages open after the access code.
+    fap.enterAccessCode(FapPage.cabinProg, '318');
+    fap.enterAccessCode(FapPage.layout, '318');
+    fap.enterAccessCode(FapPage.level, '318');
+    fap.enterAccessCode(FapPage.swLoad, '813');
+    for (final p in FapPage.values.where((p) => p.protected)) {
+      fap.goTo(p);
+      await shot(tester, 'page_${p.name}_open');
+    }
+    await teardown(tester);
+  });
+
+  testWidgets('CAM, audio and set-up scenarios render', (tester) async {
+    await boot(tester, const Size(1600, 1000));
+    // Audio: music on, memo list, an announcement playing.
+    fap.bgmToggle();
+    for (final id in ['welcome', 'safety', 'seatbelt']) {
+      fap.selectPram(id);
+      fap.memoAdd();
+    }
+    fap.selectPram('turbulence');
+    await fap.playSelectedPram();
+    fap.simulatePaxCall();
+    fap.goTo(FapPage.audio);
+    await shot(tester, 'scenario_audio_memo');
+    fap.callReset();
+
+    // Layout 2 loaded; lights follow its classes.
+    fap.enterAccessCode(FapPage.layout, '318');
+    fap.selectLayoutRow(2);
+    fap.loadLayout();
+    fap.goTo(FapPage.lights);
+    await shot(tester, 'scenario_lights_layout2');
+
+    // Cabin programming saved.
+    fap.selectLayoutRow(3);
+    fap.loadLayout();
+    fap.enterAccessCode(FapPage.cabinProg, '318');
+    fap.selectBoundary(1);
+    fap.moveBoundary(3);
+    fap.goTo(FapPage.cabinProg);
+    await shot(tester, 'scenario_cabin_prog_draft');
+    fap.saveProgramming();
+    await shot(tester, 'scenario_cabin_prog_saved');
+    fap.dismissSaved();
+
+    // Seat settings with inhibited seats and a call.
+    fap.inhibitSeat('12C');
+    fap.inhibitSeat('3A');
+    fap.goTo(FapPage.seat);
+    await shot(tester, 'scenario_seat');
+
+    // Level adjustment changed.
+    fap.enterAccessCode(FapPage.level, '318');
+    fap.adjustLevel(announce: 3, chime: -2);
+    fap.goTo(FapPage.level);
+    await shot(tester, 'scenario_level');
+
+    // FAP config open + Fahrenheit + dimmed screen.
+    fap.setTempUnit(true);
+    fap.adjustBrightness(-30);
+    fap.toggleConfig();
+    fap.goTo(FapPage.temperature);
+    await shot(tester, 'scenario_config_fahrenheit');
+    fap.toggleConfig();
+    fap.adjustBrightness(30);
+
+    // Software loading in progress.
+    fap.enterAccessCode(FapPage.swLoad, '813');
+    fap.goTo(FapPage.swLoad);
+    fap.loadSoftware();
+    await tester.pump(const Duration(seconds: 4));
+    await shot(tester, 'scenario_sw_loading');
+    await tester.pump(const Duration(seconds: 12));
+    await tester.pump(const Duration(seconds: 5));
+    await teardown(tester);
+  });
+
+  final openCode = Platform.environment['FAP_OPEN_CODE'] ?? '';
+
+  testWidgets('open code is asked once', skip: openCode.isEmpty, (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(AisatFapApp(fap: fap, unlocked: false));
+    await tester.pump();
+    await shot(tester, 'unlock_screen');
+    await tester.enterText(find.byType(EditableText), 'wrong');
+    await tester.tap(find.text('UNLOCK'));
+    await tester.pumpAndSettle();
+    expect(find.text('Wrong code. Please try again.'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText), openCode);
+    await tester.tap(find.text('UNLOCK'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('UNLOCK'), findsNothing);
+    expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsOneWidget);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('fap_unlocked_v1'), isTrue);
     await teardown(tester);
   });
 
@@ -86,7 +189,7 @@ void main() {
 
     // Lights page with mixed levels, reading + emergency lights.
     fap.setZoneLight(LightZone.fwdEntry, LightLevel.dim1);
-    fap.setZoneLight(LightZone.aftCabin, LightLevel.dim2);
+    fap.setZoneLight(LightZone.tourist, LightLevel.dim2);
     fap.toggleReadingAll();
     fap.toggleEmerLights();
     await shot(tester, 'scenario_lights_mixed');

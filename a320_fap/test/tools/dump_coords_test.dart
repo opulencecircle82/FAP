@@ -91,17 +91,31 @@ void main() {
       }
       // Named regions (panels, cards, diagram, bars) for highlight boxes.
       const regionTypes = {
-        'TopStatusBar', '_TitleBar', 'BottomTouchNav', 'HardwareBezelStrip',
-        'AircraftDiagram', 'FapPanel', 'TrainerBox', '_DoorCard',
-        '_TileView', '_LavCard', '_ZoneCard', '_Gauge', '_LavTile',
-        '_SummaryBar', '_ResetHint', '_EvacCmdKey', '_HardKey',
+        'TopStatusBar',
+        '_TitleBar',
+        'BottomTouchNav',
+        'HardwareBezelStrip',
+        'AircraftDiagram',
+        'FapPanel',
+        'TrainerBox',
+        '_DoorCard',
+        '_TileView',
+        '_LavCard',
+        '_ZoneCard',
+        '_Gauge',
+        '_LavTile',
+        '_SummaryBar',
+        '_ResetHint',
+        '_EvacCmdKey',
+        '_HardKey',
       };
       final regions = <Map<String, dynamic>>[];
-      for (final e in find
-          .byWidgetPredicate(
-            (w) => regionTypes.contains(w.runtimeType.toString()),
-          )
-          .evaluate()) {
+      for (final e
+          in find
+              .byWidgetPredicate(
+                (w) => regionTypes.contains(w.runtimeType.toString()),
+              )
+              .evaluate()) {
         final box = e.renderObject as RenderBox?;
         if (box == null || !box.hasSize) continue;
         final labels = <String>[];
@@ -137,6 +151,8 @@ void main() {
           'remove': Icons.remove.codePoint,
           'play': Icons.play_arrow.codePoint,
           'stop': Icons.stop.codePoint,
+          'arrow_forward': Icons.arrow_forward.codePoint,
+          'arrow_back': Icons.arrow_back.codePoint,
         },
         'pages': out,
       }),

@@ -66,7 +66,7 @@ class CabinStatusSubscreen extends StatelessWidget {
         color: FapColors.cyan,
         lines: [
           for (final z in TempZone.values)
-            '${z.name.toUpperCase()} ${fap.actualTemp(z).toStringAsFixed(1)}°C',
+            '${z.name.toUpperCase()} ${fap.formatTemp(fap.actualTemp(z)).replaceAll(' ', '')}',
         ],
       ),
       _Tile(

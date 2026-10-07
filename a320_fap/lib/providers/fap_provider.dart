@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/cabin_setup.dart';
 import '../models/fap_state.dart';
 import '../models/pram_item.dart';
 import '../services/fap_audio.dart';
@@ -29,10 +31,13 @@ class FapNotice {
 /// Complete A320 CIDS FAP simulator state and logic. Everything is local:
 /// persistent settings are stored with SharedPreferences, alarms are not.
 class FapProvider extends ChangeNotifier {
-  FapProvider({FapAudio? audio}) : audio = audio ?? FapAudio() {
+  FapProvider({FapAudio? audio, Random? random})
+    : audio = audio ?? FapAudio(),
+      _random = random ?? Random() {
     this.audio.onAnnouncementDone = _onAnnouncementDone;
     this.audio.setPaGain(_paGain);
     this.audio.setMusicLevel(_musicLevel);
+    _applyAudioOutput();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
   }
 
@@ -45,17 +50,84 @@ class FapProvider extends ChangeNotifier {
   Timer? _noticeTimer;
   Timer? _lockTimer;
   Timer? _restartTimer;
+  Timer? _swTimer;
+  Timer? _playAllTimer;
+  final Random _random;
   bool _disposed = false;
 
   // ------------------------------------------------------------ navigation
 
   FapPage _page = FapPage.lights;
   FapPage get page => _page;
+  int _bank = 1;
+
+  /// Which row of page tabs is shown (1 = cabin pages, 2 = CAM pages).
+  int get bank => _bank;
 
   void goTo(FapPage p) {
-    if (_page == p) return;
+    if (_page == p && _bank == p.bank) return;
     _page = p;
+    _bank = p.bank;
     notifyListeners();
+  }
+
+  /// The arrows at both ends of the tab bar switch between the two rows.
+  void setBank(int b) {
+    if (_bank == b) return;
+    _bank = b;
+    notifyListeners();
+  }
+
+  // Access codes for the protected CAM / maintenance pages.
+  final Set<FapPage> _granted = {};
+  bool accessGranted(FapPage p) => !p.protected || _granted.contains(p);
+
+  /// Returns true when [code] opens page [p] (CIDS default codes).
+  bool enterAccessCode(FapPage p, String code) {
+    final need = p == FapPage.swLoad
+        ? SetupLimits.softwareCode
+        : SetupLimits.programmingCode;
+    if (code == need) {
+      _granted.add(p);
+      notifyListeners();
+      return true;
+    }
+    _showNotice('INVALID ACCESS CODE', color: FapColors.red);
+    notifyListeners();
+    return false;
+  }
+
+  // ------------------------------------------------------------ screen
+
+  bool _screenOff = false;
+  bool get screenOff => _screenOff;
+
+  /// SCREEN OFF: blanks the display; a touch wakes it up.
+  void setScreenOff(bool off) {
+    _screenOff = off;
+    notifyListeners();
+  }
+
+  bool _configOpen = false;
+  bool get configOpen => _configOpen;
+
+  /// FAP CONFIG panel (simulator settings) open / closed.
+  void toggleConfig() {
+    _configOpen = !_configOpen;
+    notifyListeners();
+  }
+
+  bool _cabinReady = false;
+  bool get cabinReady => _cabinReady;
+
+  /// CABIN READY: tells the flight crew the cabin is secured.
+  void toggleCabinReady() {
+    _cabinReady = !_cabinReady;
+    _showNotice(
+      _cabinReady ? 'CABIN READY SENT TO COCKPIT' : 'CABIN READY CANCELLED',
+      color: _cabinReady ? FapColors.okGreen : FapColors.amber,
+    );
+    _changed();
   }
 
   FapNotice? _notice;
@@ -78,6 +150,7 @@ class FapProvider extends ChangeNotifier {
     for (final z in LightZone.values) z: LightLevel.bright,
   };
   bool _windowLights = true;
+  bool _aisleLights = true;
   bool _readingAll = false;
   bool _attWorkLights = true;
   bool _lavMaint = false;
@@ -85,19 +158,34 @@ class FapProvider extends ChangeNotifier {
 
   LightLevel lightLevel(LightZone z) => _lights[z]!;
   bool get windowLights => _windowLights;
+  bool get aisleLights => _aisleLights;
   bool get readingAll => _readingAll;
   bool get attWorkLights => _attWorkLights;
   bool get lavMaint => _lavMaint;
   bool get emerLights => _emerLights;
 
+  static LightZone zoneOfClass(CabinClass c) => switch (c) {
+    CabinClass.first => LightZone.first,
+    CabinClass.business => LightZone.business,
+    CabinClass.tourist => LightZone.tourist,
+  };
+
+  /// Lighting zones of the active layout, forward to aft.
+  List<LightZone> get activeZones => [
+    LightZone.fwdEntry,
+    for (final c in activeLayout.classes) zoneOfClass(c),
+    LightZone.aftEntry,
+  ];
+
   /// True when any general cabin illumination zone is on.
-  bool get mainLightsOn => _lights.values.any((l) => l != LightLevel.off);
+  bool get mainLightsOn => activeZones.any((z) => _lights[z] != LightLevel.off);
 
   /// The level shared by every zone, or null when zones differ / are off.
   LightLevel? get generalLevel {
-    final first = _lights.values.first;
+    final zones = activeZones;
+    final first = _lights[zones.first]!;
     if (first == LightLevel.off) return null;
-    return _lights.values.every((l) => l == first) ? first : null;
+    return zones.every((z) => _lights[z] == first) ? first : null;
   }
 
   /// Pressing the selected level again switches that zone off (FAP toggle).
@@ -106,20 +194,20 @@ class FapProvider extends ChangeNotifier {
     _changed();
   }
 
-  void setGeneralLight(LightLevel level) {
-    final target = generalLevel == level ? LightLevel.off : level;
+  void _setAllZones(LightLevel level) {
     for (final z in LightZone.values) {
-      _lights[z] = target;
+      _lights[z] = level;
     }
+  }
+
+  void setGeneralLight(LightLevel level) {
+    _setAllZones(generalLevel == level ? LightLevel.off : level);
     _changed();
   }
 
-  /// LIGHTS MAIN ON/OFF hard key.
+  /// LIGHTS MAIN ON/OFF (hard key and touch key).
   void toggleMainLights() {
-    final target = mainLightsOn ? LightLevel.off : LightLevel.bright;
-    for (final z in LightZone.values) {
-      _lights[z] = target;
-    }
+    _setAllZones(mainLightsOn ? LightLevel.off : LightLevel.bright);
     _changed();
   }
 
@@ -128,8 +216,20 @@ class FapProvider extends ChangeNotifier {
     _changed();
   }
 
+  void toggleAisleLights() {
+    _aisleLights = !_aisleLights;
+    _changed();
+  }
+
   void toggleReadingAll() {
     _readingAll = !_readingAll;
+    _changed();
+  }
+
+  /// R/L SET: switches on every passenger reading light (except inhibited
+  /// seats); R/L RESET switches them all off.
+  void readingLightsSet(bool on) {
+    _readingAll = on;
     _changed();
   }
 
@@ -252,7 +352,6 @@ class FapProvider extends ChangeNotifier {
 
   String _selectedPram = pramLibrary.first.id;
   String? _playingAnnouncement;
-  bool _musicPlaying = false;
   double _paGain = 0.8;
   double _musicLevel = 0.6;
 
@@ -260,53 +359,107 @@ class FapProvider extends ChangeNotifier {
   PramItem get selectedPramItem =>
       pramLibrary.firstWhere((p) => p.id == _selectedPram);
   String? get playingAnnouncement => _playingAnnouncement;
-  bool get musicPlaying => _musicPlaying;
+  PramItem? get onAnnounce => _playingAnnouncement == null
+      ? null
+      : pramLibrary.firstWhere((p) => p.id == _playingAnnouncement);
   double get paGain => _paGain;
   double get musicLevel => _musicLevel;
-
-  bool isPramPlaying(PramItem item) =>
-      item.isMusic ? _musicPlaying : _playingAnnouncement == item.id;
 
   void selectPram(String id) {
     _selectedPram = id;
     notifyListeners();
   }
 
-  Future<void> playSelectedPram() async {
+  // MEMO: a queue of announcements for PLAY NEXT / PLAY ALL.
+  final List<String> _memo = [];
+  int _memoSel = 0;
+  bool _playAll = false;
+  List<String> get memo => List.unmodifiable(_memo);
+  int get memoSelected => _memoSel;
+  bool get playingAll => _playAll;
+
+  /// Arrow right: copies the selected announcement into the MEMO list.
+  void memoAdd() {
+    _memo.add(_selectedPram);
+    _memoSel = _memo.length - 1;
+    notifyListeners();
+  }
+
+  /// Arrow left: removes the highlighted MEMO entry.
+  void memoRemove() {
+    if (_memo.isEmpty) return;
+    _memo.removeAt(_memoSel);
+    _memoSel = _memoSel.clamp(0, max(0, _memo.length - 1));
+    notifyListeners();
+  }
+
+  void memoSelect(int i) {
+    if (i < 0 || i >= _memo.length) return;
+    _memoSel = i;
+    notifyListeners();
+  }
+
+  void memoMove(int delta) => memoSelect(_memoSel + delta);
+
+  void memoClear() {
+    _memo.clear();
+    _memoSel = 0;
+    notifyListeners();
+  }
+
+  Future<void> _announce(String id) async {
     if (cidsDown) {
       _showNotice('CIDS 1+2 FAULT - PA NOT AVAILABLE', color: FapColors.red);
+      _playAll = false;
       notifyListeners();
       return;
     }
-    final item = selectedPramItem;
-    if (item.isMusic) {
-      _musicPlaying = true;
-      notifyListeners();
-      await audio.startMusic();
-      return;
-    }
-    _playingAnnouncement = item.id;
+    _playingAnnouncement = id;
     notifyListeners();
-    final ok = await audio.announce(item.id);
+    final ok = await audio.announce(id);
     if (!ok) {
       _playingAnnouncement = null;
+      _playAll = false;
       _showNotice('ANNOUNCEMENT COULD NOT BE PLAYED');
       notifyListeners();
     }
   }
 
-  Future<void> stopSelectedPram() async {
-    if (selectedPramItem.isMusic) {
-      _musicPlaying = false;
+  /// DIRECT PLAY: plays the selected announcement now (a new announcement
+  /// always replaces the one playing; two never overlap).
+  Future<void> playSelectedPram() => _announce(_selectedPram);
+
+  /// PLAY NEXT: plays the first MEMO entry and removes it from the list.
+  Future<void> playNext() async {
+    if (_memo.isEmpty) {
+      _playAll = false;
+      _showNotice('MEMO IS EMPTY');
       notifyListeners();
-      await audio.stopMusic();
-    } else if (_playingAnnouncement != null) {
-      await audio.stopAnnouncement();
+      return;
     }
+    final id = _memo.removeAt(0);
+    _memoSel = 0;
+    await _announce(id);
+  }
+
+  /// PLAY ALL: plays the whole MEMO list in order.
+  Future<void> playAll() async {
+    _playAll = true;
+    await playNext();
+  }
+
+  /// STOP: stops the announcement (and PLAY ALL).
+  Future<void> stopSelectedPram() async {
+    _playAll = false;
+    _playAllTimer?.cancel();
+    if (_playingAnnouncement != null) await audio.stopAnnouncement();
+    notifyListeners();
   }
 
   Future<void> stopAllAudio() async {
-    _musicPlaying = false;
+    _playAll = false;
+    _playAllTimer?.cancel();
+    _bgmOn = false;
     notifyListeners();
     await audio.stopMusic();
     await audio.stopAnnouncement();
@@ -315,6 +468,14 @@ class FapProvider extends ChangeNotifier {
   void _onAnnouncementDone() {
     if (_playingAnnouncement == null) return;
     _playingAnnouncement = null;
+    if (_playAll && _memo.isNotEmpty) {
+      _playAllTimer?.cancel();
+      _playAllTimer = Timer(const Duration(milliseconds: 700), () {
+        if (!_disposed && _playAll) playNext();
+      });
+    } else {
+      _playAll = false;
+    }
     notifyListeners();
   }
 
@@ -329,6 +490,44 @@ class FapProvider extends ChangeNotifier {
     audio.setMusicLevel(v);
     _changed();
   }
+
+  // Boarding music (BGM1): channel, ON/OFF, VOL and CHAN +/-.
+  BgmChannel _bgmChannel = BgmChannel.blues;
+  bool _bgmOn = false;
+  BgmChannel get bgmChannel => _bgmChannel;
+  bool get musicPlaying => _bgmOn;
+
+  /// 0..10 volume steps shown on the BGM panel.
+  int get bgmVolume => (_musicLevel * 10).round();
+
+  void bgmSelect(BgmChannel c) {
+    _bgmChannel = c;
+    if (_bgmOn && !cidsDown) audio.startMusic(c);
+    _changed();
+  }
+
+  void bgmChannelStep(int delta) {
+    final all = BgmChannel.values;
+    bgmSelect(all[(_bgmChannel.index + delta) % all.length]);
+  }
+
+  void bgmToggle() {
+    if (!_bgmOn && cidsDown) {
+      _showNotice('CIDS 1+2 FAULT - BGM NOT AVAILABLE', color: FapColors.red);
+      notifyListeners();
+      return;
+    }
+    _bgmOn = !_bgmOn;
+    if (_bgmOn) {
+      audio.startMusic(_bgmChannel);
+    } else {
+      audio.stopMusic();
+    }
+    notifyListeners();
+  }
+
+  void bgmVolumeStep(int delta) =>
+      setMusicLevel(((bgmVolume + delta).clamp(0, 10)) / 10);
 
   bool _chimeInhibit = false;
   bool get chimeInhibit => _chimeInhibit;
@@ -391,6 +590,29 @@ class FapProvider extends ChangeNotifier {
     _changed();
   }
 
+  /// RESET: back to the cockpit selected temperature in all areas.
+  void resetTempToCockpit() {
+    _fapTrim.updateAll((_, _) => 0.0);
+    _showNotice(
+      'RESET TO COCKPIT SELECTED TEMPERATURE',
+      color: FapColors.okGreen,
+    );
+    _changed();
+  }
+
+  bool _tempF = false;
+  bool get tempFahrenheit => _tempF;
+
+  /// FAP CONFIG: temperature unit.
+  void setTempUnit(bool fahrenheit) {
+    _tempF = fahrenheit;
+    _changed();
+  }
+
+  String formatTemp(double c, {int digits = 1}) => _tempF
+      ? '${(c * 9 / 5 + 32).toStringAsFixed(digits)} °F'
+      : '${c.toStringAsFixed(digits)} °C';
+
   /// Trainer: the flight crew changes the zone selector in the cockpit.
   void adjustCockpitTemp(TempZone z, double delta) {
     _cockpitTemp[z] = (_cockpitTemp[z]! + delta)
@@ -418,6 +640,25 @@ class FapProvider extends ChangeNotifier {
   /// A full waste tank makes every vacuum toilet inoperative.
   bool get lavsInop => wasteFull;
 
+  bool _warnAck = false;
+  bool get _waterWarning => lavsInop || waterLow;
+
+  /// RESET WARN: acknowledges the water / waste caution. It comes back if
+  /// the condition clears and happens again.
+  void resetWarn() {
+    if (!_waterWarning) {
+      _showNotice('NO WATER / WASTE WARNING', color: FapColors.textDim);
+      notifyListeners();
+      return;
+    }
+    _warnAck = true;
+    _changed();
+  }
+
+  void _updateWarn() {
+    if (!_waterWarning) _warnAck = false;
+  }
+
   void setWaterPreselect(int pct) {
     _waterPreselect = pct;
     _changed();
@@ -425,21 +666,25 @@ class FapProvider extends ChangeNotifier {
 
   void refillWater() {
     _waterPct = _waterPreselect.toDouble();
+    _updateWarn();
     _changed();
   }
 
   void consumeWater() {
     _waterPct = (_waterPct - 10).clamp(0, 100).toDouble();
+    _updateWarn();
     _changed();
   }
 
   void addWaste() {
     _wastePct = (_wastePct + 10).clamp(0, 100).toDouble();
+    _updateWarn();
     _changed();
   }
 
   void drainWaste() {
     _wastePct = 0;
+    _updateWarn();
     _changed();
   }
 
@@ -590,6 +835,7 @@ class FapProvider extends ChangeNotifier {
   void fapReset() {
     if (_fapRestarting) return;
     _fapRestarting = true;
+    _granted.clear();
     _restartTimer?.cancel();
     _restartTimer = Timer(const Duration(seconds: 4), () {
       if (_disposed) return;
@@ -630,6 +876,374 @@ class FapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ------------------------------------------------------------ CAM layouts
+
+  int _layoutId = 3;
+  int? _pendingLayout;
+  final Map<int, List<int>> _starts = {
+    for (final l in cabinLayouts) l.id: [...l.defaultStarts],
+  };
+  final Map<int, int> _layoutCount = {for (final l in cabinLayouts) l.id: 0};
+  final Map<int, DateTime> _layoutChanged = {};
+  bool _nonSmoker = true;
+
+  CabinLayout get activeLayout => layoutById(_layoutId);
+  int get pendingLayout => _pendingLayout ?? _layoutId;
+  List<int> classStarts([int? id]) => _starts[id ?? _layoutId]!;
+  int layoutCount(int id) => _layoutCount[id]!;
+  DateTime? layoutChanged(int id) => _layoutChanged[id];
+  bool get nonSmoker => _nonSmoker;
+
+  /// First and last seat row of class number [i] of the active layout.
+  (int, int) classRows(int i, [List<int>? starts]) {
+    final st = starts ?? classStarts();
+    final last = i + 1 < st.length ? st[i + 1] - 1 : activeLayout.rows;
+    return (st[i], last);
+  }
+
+  CabinClass classOfRow(int row) {
+    final st = classStarts();
+    var c = 0;
+    for (var i = 0; i < st.length; i++) {
+      if (row >= st[i]) c = i;
+    }
+    return activeLayout.classes[c];
+  }
+
+  void selectLayoutRow(int id) {
+    _pendingLayout = id;
+    notifyListeners();
+  }
+
+  /// LOAD: activates the highlighted layout.
+  void loadLayout() {
+    _layoutId = pendingLayout;
+    _pendingLayout = null;
+    _draftStarts = null;
+    _applyAudioOutput();
+    _showNotice('LAYOUT $_layoutId LOADED', color: FapColors.okGreen);
+    _changed();
+  }
+
+  // Cabin programming: edits a draft, SAVE writes it to the CAM.
+  List<int>? _draftStarts;
+  bool? _draftNonSmoker;
+  int _boundary = 1;
+  ({int layout, int count, DateTime date})? _saved;
+
+  List<int> get draftStarts => _draftStarts ?? classStarts();
+  bool get draftNonSmoker => _draftNonSmoker ?? _nonSmoker;
+  int get selectedBoundary =>
+      _boundary.clamp(1, max(1, draftStarts.length - 1));
+  bool get programmingDirty => _draftStarts != null || _draftNonSmoker != null;
+  ({int layout, int count, DateTime date})? get savedInfo => _saved;
+
+  /// CABIN ZONE: picks the class boundary to move (1 = between the first
+  /// and the second class).
+  void selectBoundary(int i) {
+    _boundary = i;
+    notifyListeners();
+  }
+
+  /// Moves the selected class boundary by [delta] seat rows.
+  void moveBoundary(int delta) {
+    final st = [...draftStarts];
+    final i = selectedBoundary;
+    if (st.length < 2) {
+      _showNotice('1-CLASS LAYOUT: NO CABIN ZONES TO MOVE');
+      notifyListeners();
+      return;
+    }
+    final lo = st[i - 1] + 1;
+    final hi = i + 1 < st.length ? st[i + 1] - 1 : activeLayout.rows;
+    final next = (st[i] + delta).clamp(lo, hi);
+    if (next == st[i]) return;
+    st[i] = next;
+    _draftStarts = st;
+    notifyListeners();
+  }
+
+  void toggleNonSmokerDraft() {
+    _draftNonSmoker = !draftNonSmoker;
+    notifyListeners();
+  }
+
+  /// SAVE: writes the cabin programming to the CAM (layout becomes
+  /// "MODIFIED" and its change counter goes up).
+  void saveProgramming() {
+    if (!programmingDirty) {
+      _showNotice('NOTHING TO SAVE', color: FapColors.textDim);
+      notifyListeners();
+      return;
+    }
+    if (_draftStarts != null) _starts[_layoutId] = _draftStarts!;
+    if (_draftNonSmoker != null) _nonSmoker = _draftNonSmoker!;
+    _draftStarts = null;
+    _draftNonSmoker = null;
+    _layoutCount[_layoutId] = _layoutCount[_layoutId]! + 1;
+    _layoutChanged[_layoutId] = DateTime.now();
+    _saved = (
+      layout: _layoutId,
+      count: _layoutCount[_layoutId]!,
+      date: _layoutChanged[_layoutId]!,
+    );
+    _changed();
+  }
+
+  void dismissSaved() {
+    _saved = null;
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------ seats / calls
+
+  final Set<String> _callInhibited = {};
+  final Set<String> _readingInhibited = {};
+  bool _seatReadingMode = false;
+  bool _callInhibitAll = false;
+  final List<String> _paxCalls = [];
+
+  /// SEAT SETTINGS works on passenger calls or reading lights.
+  bool get seatReadingMode => _seatReadingMode;
+  Set<String> get inhibitedSeats =>
+      _seatReadingMode ? _readingInhibited : _callInhibited;
+  bool get callInhibitAll => _callInhibitAll;
+
+  /// Seats whose reading light is inhibited (they stay off on R/L SET).
+  int get readingInhibitedCount => _readingInhibited.length;
+  List<String> get paxCalls => List.unmodifiable(_paxCalls);
+
+  void setSeatMode(bool reading) {
+    _seatReadingMode = reading;
+    notifyListeners();
+  }
+
+  void inhibitSeat(String seat) {
+    inhibitedSeats.add(seat);
+    if (!_seatReadingMode) _paxCalls.remove(seat);
+    _changed();
+  }
+
+  void enableSeat(String seat) {
+    inhibitedSeats.remove(seat);
+    _changed();
+  }
+
+  void enableAllSeats() {
+    inhibitedSeats.clear();
+    _changed();
+  }
+
+  /// CALL INHIBIT: ignores all passenger call buttons.
+  void toggleCallInhibitAll() {
+    _callInhibitAll = !_callInhibitAll;
+    if (_callInhibitAll) _paxCalls.clear();
+    _changed();
+  }
+
+  /// Trainer: a passenger presses a call button somewhere in the cabin.
+  void simulatePaxCall() {
+    if (_callInhibitAll) {
+      _showNotice('PASSENGER CALLS INHIBITED');
+      notifyListeners();
+      return;
+    }
+    final free = [
+      for (var r = 1; r <= activeLayout.rows; r++)
+        for (final l in seatLetters)
+          if (!_callInhibited.contains('$r$l') && !_paxCalls.contains('$r$l'))
+            '$r$l',
+    ];
+    if (free.isEmpty) return;
+    final seat = free[_random.nextInt(free.length)];
+    _paxCalls.add(seat);
+    if (!_chimeInhibit && !cidsDown) audio.chime(ChimeType.singleHigh);
+    notifyListeners();
+  }
+
+  /// CALL RESET: cancels every passenger call.
+  void callReset() {
+    if (_paxCalls.isEmpty) {
+      _showNotice('NO PASSENGER CALL', color: FapColors.textDim);
+    }
+    _paxCalls.clear();
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------ level adjust
+
+  static List<String> levelAreasOf(LevelGroup g) => switch (g) {
+    LevelGroup.cabinZones => [for (final c in CabinClass.values) c.label],
+    LevelGroup.attendantAreas => ['FWD ATTENDANT', 'AFT ATTENDANT'],
+    LevelGroup.lavatories => ['LAV A', 'LAV D', 'LAV E'],
+  };
+
+  final Map<String, LevelSetting> _levels = {
+    for (final g in LevelGroup.values)
+      for (final a in levelAreasOf(g)) a: const LevelSetting(),
+  };
+  LevelGroup _levelGroup = LevelGroup.cabinZones;
+  int _levelSel = 0;
+
+  LevelGroup get levelGroup => _levelGroup;
+  int get levelSelected => _levelSel;
+  LevelSetting level(String area) => _levels[area]!;
+
+  /// Areas of the shown group (cabin zones follow the active layout).
+  List<String> get levelAreas => _levelGroup == LevelGroup.cabinZones
+      ? [for (final c in activeLayout.classes) c.label]
+      : levelAreasOf(_levelGroup);
+
+  void setLevelGroup(LevelGroup g) {
+    _levelGroup = g;
+    _levelSel = 0;
+    notifyListeners();
+  }
+
+  void levelSelect(int i) {
+    if (i < 0 || i >= levelAreas.length) return;
+    _levelSel = i;
+    notifyListeners();
+  }
+
+  void adjustLevel({int announce = 0, int chime = 0}) {
+    final area = levelAreas[_levelSel];
+    final l = _levels[area]!;
+    int clampDb(int v) => v.clamp(SetupLimits.minDb, SetupLimits.maxDb);
+    _levels[area] = LevelSetting(
+      announce: clampDb(l.announce + announce),
+      chime: clampDb(l.chime + chime),
+    );
+    _applyAudioOutput();
+    _changed();
+  }
+
+  /// DEFAULT: all areas of the shown group back to +0 dB.
+  void levelsDefault() {
+    for (final a in levelAreasOf(_levelGroup)) {
+      _levels[a] = const LevelSetting();
+    }
+    _applyAudioOutput();
+    _changed();
+  }
+
+  void saveLevels() {
+    _showNotice('LEVEL ADJUSTMENT SAVED', color: FapColors.okGreen);
+    _changed();
+  }
+
+  // ------------------------------------------------------------ FAP set-up
+
+  int _brightness = 100;
+  int _loudspeaker = 100;
+  int _headphone = 50;
+  bool _touchClick = true;
+  bool _muteAll = false;
+
+  int get brightness => _brightness;
+  int get loudspeaker => _loudspeaker;
+  int get headphone => _headphone;
+  bool get touchClick => _touchClick;
+  bool get muteAll => _muteAll;
+
+  void adjustBrightness(int delta) {
+    _brightness = (_brightness + delta).clamp(20, 100);
+    _changed();
+  }
+
+  void adjustLoudspeaker(int delta) {
+    _loudspeaker = (_loudspeaker + delta).clamp(0, 100);
+    _applyAudioOutput();
+    _changed();
+  }
+
+  void adjustHeadphone(int delta) {
+    _headphone = (_headphone + delta).clamp(0, 100);
+    _changed();
+  }
+
+  void toggleTouchClick() {
+    _touchClick = !_touchClick;
+    _changed();
+  }
+
+  void setupDefault() {
+    _brightness = 100;
+    _loudspeaker = 100;
+    _headphone = 50;
+    _touchClick = true;
+    _applyAudioOutput();
+    _changed();
+  }
+
+  void saveSetup() {
+    _showNotice('FAP SET-UP SAVED', color: FapColors.okGreen);
+    _changed();
+  }
+
+  /// FAP CONFIG: mutes every sound of the simulator.
+  void setMuteAll(bool mute) {
+    _muteAll = mute;
+    _applyAudioOutput();
+    _changed();
+  }
+
+  /// Key click on every touchscreen key (when enabled).
+  void keyClick() {
+    if (_touchClick) audio.click();
+  }
+
+  void _applyAudioOutput() {
+    double avg(int Function(LevelSetting) f) {
+      final areas = [for (final c in activeLayout.classes) c.label];
+      return areas.map((a) => f(_levels[a]!)).reduce((a, b) => a + b) /
+          areas.length;
+    }
+
+    audio.setOutput(
+      loudspeaker: _loudspeaker / 100,
+      muted: _muteAll,
+      announceDb: avg((l) => l.announce),
+      chimeDb: avg((l) => l.chime),
+    );
+  }
+
+  // ------------------------------------------------------------ software
+
+  double? _swProgress;
+  bool _swUpdated = false;
+
+  /// 0..1 while software is loading, otherwise null.
+  double? get swProgress => _swProgress;
+
+  /// True once the software in the OBRM slot has been loaded.
+  bool get swUpdated => _swUpdated;
+
+  /// LOAD SW: loads the CIDS software from the OBRM; the CIDS restarts
+  /// automatically afterwards.
+  void loadSoftware() {
+    if (_swProgress != null) return;
+    if (_swUpdated) {
+      _showNotice('SOFTWARE ALREADY UP TO DATE', color: FapColors.textDim);
+      notifyListeners();
+      return;
+    }
+    _swProgress = 0;
+    _swTimer?.cancel();
+    _swTimer = Timer.periodic(const Duration(milliseconds: 200), (t) {
+      if (_disposed) return t.cancel();
+      _swProgress = _swProgress! + 0.02;
+      if (_swProgress! >= 1) {
+        t.cancel();
+        _swProgress = null;
+        _swUpdated = true;
+        fapReset();
+      }
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
   // ------------------------------------------------------------ CIDS
 
   bool _dir1Fault = false;
@@ -649,7 +1263,8 @@ class FapProvider extends ChangeNotifier {
     }
     if (cidsDown) {
       // PA, interphone and passenger signs are lost.
-      _musicPlaying = false;
+      _bgmOn = false;
+      _playAll = false;
       audio.stopMusic();
       audio.stopAnnouncement();
     }
@@ -685,10 +1300,22 @@ class FapProvider extends ChangeNotifier {
         FapColors.red,
       );
     }
-    if (lavsInop) {
+    if (lavsInop && !_warnAck) {
       return const CautionMessage(
         'WASTE TANK FULL - LAVATORIES INOP',
         FapColors.amber,
+      );
+    }
+    if (waterLow && !_warnAck) {
+      return CautionMessage(
+        waterEmpty ? 'POTABLE WATER EMPTY' : 'POTABLE WATER LOW',
+        FapColors.amber,
+      );
+    }
+    if (_paxCalls.isNotEmpty) {
+      return CautionMessage(
+        'PAX CALL  ${_paxCalls.join(' / ')}',
+        FapColors.cyan,
       );
     }
     if (_dir1Fault || _dir2Fault) {
@@ -704,8 +1331,10 @@ class FapProvider extends ChangeNotifier {
         flashing: true,
       );
     }
-    return const CautionMessage(
-      'ALL DOORS CLOSED  -  ALL SLIDES ARMED',
+    return CautionMessage(
+      _cabinReady
+          ? 'ALL DOORS CLOSED  -  ALL SLIDES ARMED  -  CABIN READY'
+          : 'ALL DOORS CLOSED  -  ALL SLIDES ARMED',
       FapColors.okGreen,
     );
   }
@@ -731,6 +1360,7 @@ class FapProvider extends ChangeNotifier {
       _lights[z] = LightLevel.bright;
     }
     _windowLights = true;
+    _aisleLights = true;
     _readingAll = false;
     _attWorkLights = true;
     _lavMaint = false;
@@ -754,8 +1384,29 @@ class FapProvider extends ChangeNotifier {
     _chimeInhibit = false;
     _dir1Fault = false;
     _dir2Fault = false;
-    _musicPlaying = false;
+    _bgmOn = false;
+    _playAll = false;
+    _memo.clear();
     _playingAnnouncement = null;
+    _paxCalls.clear();
+    _callInhibited.clear();
+    _readingInhibited.clear();
+    _callInhibitAll = false;
+    _cabinReady = false;
+    _warnAck = false;
+    _layoutId = 3;
+    _pendingLayout = null;
+    _draftStarts = null;
+    _draftNonSmoker = null;
+    for (final l in cabinLayouts) {
+      _starts[l.id] = [...l.defaultStarts];
+      _layoutCount[l.id] = 0;
+    }
+    _layoutChanged.clear();
+    _nonSmoker = true;
+    _levels.updateAll((_, _) => const LevelSetting());
+    _granted.clear();
+    _applyAudioOutput();
     audio.stopAll();
     _page = FapPage.lights;
     _showNotice('SIMULATOR RESET TO DEFAULTS', color: FapColors.okGreen);
@@ -776,6 +1427,7 @@ class FapProvider extends ChangeNotifier {
       _fromJson(jsonDecode(raw) as Map<String, dynamic>);
       audio.setPaGain(_paGain);
       audio.setMusicLevel(_musicLevel);
+      _applyAudioOutput();
       notifyListeners();
     } catch (e) {
       debugPrint('FapProvider: could not restore state: $e');
@@ -809,6 +1461,31 @@ class FapProvider extends ChangeNotifier {
     'waste': _wastePct,
     'preselect': _waterPreselect,
     'paxSys': _paxSys,
+    'aisle': _aisleLights,
+    'bgmChannel': _bgmChannel.name,
+    'memo': _memo,
+    'cabinReady': _cabinReady,
+    'layout': _layoutId,
+    'starts': {for (final e in _starts.entries) '${e.key}': e.value},
+    'layoutCount': {for (final e in _layoutCount.entries) '${e.key}': e.value},
+    'layoutChanged': {
+      for (final e in _layoutChanged.entries)
+        '${e.key}': e.value.toIso8601String(),
+    },
+    'nonSmoker': _nonSmoker,
+    'callInhibited': _callInhibited.toList(),
+    'readingInhibited': _readingInhibited.toList(),
+    'callInhibitAll': _callInhibitAll,
+    'levels': {
+      for (final e in _levels.entries) e.key: [e.value.announce, e.value.chime],
+    },
+    'brightness': _brightness,
+    'loudspeaker': _loudspeaker,
+    'headphone': _headphone,
+    'touchClick': _touchClick,
+    'muteAll': _muteAll,
+    'tempF': _tempF,
+    'swUpdated': _swUpdated,
     'pedPower': _pedPower,
     'chimeInhibit': _chimeInhibit,
   };
@@ -871,6 +1548,71 @@ class FapProvider extends ChangeNotifier {
       _waterPreselect = pre;
     }
     _paxSys = j['paxSys'] as bool? ?? _paxSys;
+    _aisleLights = j['aisle'] as bool? ?? _aisleLights;
+    _bgmChannel = byName(BgmChannel.values, j['bgmChannel']) ?? _bgmChannel;
+    final pramIds = {for (final p in pramLibrary) p.id};
+    _memo
+      ..clear()
+      ..addAll([
+        for (final m in (j['memo'] as List? ?? const []))
+          if (pramIds.contains(m)) m as String,
+      ]);
+    _cabinReady = j['cabinReady'] as bool? ?? _cabinReady;
+    final lid = j['layout'] as int?;
+    if (lid != null && cabinLayouts.any((l) => l.id == lid)) _layoutId = lid;
+    final starts = j['starts'] as Map<String, dynamic>? ?? {};
+    for (final l in cabinLayouts) {
+      final v = starts['${l.id}'];
+      if (v is List && v.length == l.classes.length) {
+        final st = [for (final x in v) (x as num).toInt()];
+        var ok = st.first == 1 && st.last <= l.rows;
+        for (var i = 1; i < st.length; i++) {
+          if (st[i] <= st[i - 1]) ok = false;
+        }
+        if (ok) _starts[l.id] = st;
+      }
+    }
+    final counts = j['layoutCount'] as Map<String, dynamic>? ?? {};
+    for (final l in cabinLayouts) {
+      final c = counts['${l.id}'];
+      if (c is int && c >= 0) _layoutCount[l.id] = c;
+    }
+    final changed = j['layoutChanged'] as Map<String, dynamic>? ?? {};
+    for (final e in changed.entries) {
+      final d = DateTime.tryParse('${e.value}');
+      final id = int.tryParse(e.key);
+      if (d != null && id != null) _layoutChanged[id] = d;
+    }
+    _nonSmoker = j['nonSmoker'] as bool? ?? _nonSmoker;
+    _callInhibited
+      ..clear()
+      ..addAll([
+        for (final x in (j['callInhibited'] as List? ?? const [])) '$x',
+      ]);
+    _readingInhibited
+      ..clear()
+      ..addAll([
+        for (final x in (j['readingInhibited'] as List? ?? const [])) '$x',
+      ]);
+    _callInhibitAll = j['callInhibitAll'] as bool? ?? _callInhibitAll;
+    final levels = j['levels'] as Map<String, dynamic>? ?? {};
+    for (final e in levels.entries) {
+      final v = e.value;
+      if (_levels.containsKey(e.key) && v is List && v.length == 2) {
+        int c(Object? x) => ((x as num?)?.toInt() ?? 0).clamp(
+          SetupLimits.minDb,
+          SetupLimits.maxDb,
+        );
+        _levels[e.key] = LevelSetting(announce: c(v[0]), chime: c(v[1]));
+      }
+    }
+    _brightness = ((j['brightness'] as int?) ?? _brightness).clamp(20, 100);
+    _loudspeaker = ((j['loudspeaker'] as int?) ?? _loudspeaker).clamp(0, 100);
+    _headphone = ((j['headphone'] as int?) ?? _headphone).clamp(0, 100);
+    _touchClick = j['touchClick'] as bool? ?? _touchClick;
+    _muteAll = j['muteAll'] as bool? ?? _muteAll;
+    _tempF = j['tempF'] as bool? ?? _tempF;
+    _swUpdated = j['swUpdated'] as bool? ?? _swUpdated;
     _pedPower = j['pedPower'] as bool? ?? _pedPower;
     _chimeInhibit = j['chimeInhibit'] as bool? ?? _chimeInhibit;
   }
@@ -883,6 +1625,8 @@ class FapProvider extends ChangeNotifier {
     _noticeTimer?.cancel();
     _lockTimer?.cancel();
     _restartTimer?.cancel();
+    _swTimer?.cancel();
+    _playAllTimer?.cancel();
     audio.dispose();
     super.dispose();
   }

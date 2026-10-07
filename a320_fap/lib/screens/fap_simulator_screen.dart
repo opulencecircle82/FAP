@@ -6,13 +6,20 @@ import '../providers/fap_provider.dart';
 import '../theme/fap_theme.dart';
 import '../widgets/blink.dart';
 import '../widgets/bottom_touch_nav.dart';
+import '../widgets/fap_button.dart';
 import '../widgets/hardware_bezel_strip.dart';
 import '../widgets/top_status_bar.dart';
 import 'subscreens/audio_subscreen.dart';
+import 'subscreens/cabin_prog_subscreen.dart';
 import 'subscreens/cabin_status_subscreen.dart';
 import 'subscreens/doors_subscreen.dart';
+import 'subscreens/fap_setup_subscreen.dart';
+import 'subscreens/layout_subscreen.dart';
+import 'subscreens/level_subscreen.dart';
 import 'subscreens/lighting_subscreen.dart';
+import 'subscreens/seat_subscreen.dart';
 import 'subscreens/smoke_subscreen.dart';
+import 'subscreens/sw_load_subscreen.dart';
 import 'subscreens/system_info_subscreen.dart';
 import 'subscreens/temperature_subscreen.dart';
 import 'subscreens/water_subscreen.dart';
@@ -164,8 +171,29 @@ class _Touchscreen extends StatelessWidget {
               ),
             ),
           ),
+          // FAP SET-UP brightness: dims the whole display.
+          if (fap.brightness < 100)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ColoredBox(
+                  color: Colors.black.withValues(
+                    alpha: (100 - fap.brightness) / 100 * 0.8,
+                  ),
+                ),
+              ),
+            ),
+          if (fap.configOpen) const _FapConfigPanel(),
+          if (fap.swProgress != null) _SwLoadingOverlay(fap.swProgress!),
           if (fap.screenLocked) _LockOverlay(seconds: fap.lockRemaining),
           if (fap.fapRestarting) const _RestartOverlay(),
+          if (fap.screenOff)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => fap.setScreenOff(false),
+                child: const ColoredBox(color: Colors.black),
+              ),
+            ),
         ],
       ),
     );
@@ -179,7 +207,13 @@ class _Touchscreen extends StatelessWidget {
     FapPage.temperature => const TemperatureSubscreen(),
     FapPage.water => const WaterSubscreen(),
     FapPage.smoke => const SmokeSubscreen(),
+    FapPage.seat => const SeatSubscreen(),
     FapPage.systemInfo => const SystemInfoSubscreen(),
+    FapPage.cabinProg => const CabinProgSubscreen(),
+    FapPage.layout => const LayoutSubscreen(),
+    FapPage.level => const LevelSubscreen(),
+    FapPage.swLoad => const SwLoadSubscreen(),
+    FapPage.fapSetup => const FapSetupSubscreen(),
   };
 }
 
@@ -229,19 +263,41 @@ class _TitleBar extends StatelessWidget {
       );
     }
 
+    Widget small(String label, VoidCallback onTap, {bool active = false}) =>
+        FapButton(
+          label: label,
+          width: 116,
+          height: 26,
+          fontSize: 10.5,
+          active: active,
+          onTap: onTap,
+        );
+
     return Container(
       height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: evac && blink ? FapColors.red : const Color(0xFF0F1B26),
         border: const Border(bottom: BorderSide(color: FapColors.panelBorder)),
       ),
-      alignment: Alignment.center,
-      child: evac
-          ? content
-          : AnimatedSwitcher(
-              duration: const Duration(milliseconds: 150),
-              child: content,
+      child: Row(
+        children: [
+          small('SCREEN OFF', () => fap.setScreenOff(true)),
+          const SizedBox(width: 6),
+          small('CABIN READY', fap.toggleCabinReady, active: fap.cabinReady),
+          Expanded(
+            child: Center(
+              child: evac
+                  ? content
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 150),
+                      child: content,
+                    ),
             ),
+          ),
+          small('FAP CONFIG', fap.toggleConfig, active: fap.configOpen),
+        ],
+      ),
     );
   }
 }
@@ -289,10 +345,73 @@ class _RestartOverlay extends StatelessWidget {
   }
 }
 
-/// SCREEN 30 SEC LOCK: blocks touch input so the screen can be cleaned.
+/// SCREEN 30 SEC LOCK (clean function): blocks touch input so the screen
+/// can be cleaned.
 class _LockOverlay extends StatelessWidget {
   const _LockOverlay({required this.seconds});
   final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final left = seconds / 30;
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'CLEAN FUNCTION',
+                  style: FapText.title.copyWith(fontSize: 30),
+                ),
+                const SizedBox(height: 4),
+                const Text('SCREEN 30sec LOCK', style: FapText.title),
+                const SizedBox(height: 40),
+                Text(
+                  'REMAINING TIME\nTO CLEAN THE\nTOUCHSCREEN',
+                  textAlign: TextAlign.center,
+                  style: FapText.title.copyWith(height: 1.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '$seconds SEC.',
+                  style: FapText.title.copyWith(fontSize: 28),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: 460,
+                  height: 46,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC2C8CF),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Container(
+                    color: const Color(0xFFDDEFFF),
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: left.clamp(0.0, 1.0),
+                      child: Container(color: const Color(0xFF2B3A8C)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// SW LOAD in progress: blocks the panel until the CIDS restarts.
+class _SwLoadingOverlay extends StatelessWidget {
+  const _SwLoadingOverlay(this.progress);
+  final double progress;
 
   @override
   Widget build(BuildContext context) {
@@ -301,37 +420,139 @@ class _LockOverlay extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: () {},
         child: ColoredBox(
-          color: const Color(0xD9000000),
+          color: const Color(0xAA000000),
           child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.lock_outline,
-                  color: FapColors.amber,
-                  size: 64,
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'SCREEN LOCKED',
-                  style: FapText.title.copyWith(color: FapColors.amber),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '$seconds s',
-                  style: FapText.monoStyle(
-                    size: 40,
-                    color: FapColors.white,
-                    weight: FontWeight.w700,
+            child: Container(
+              width: 760,
+              padding: const EdgeInsets.fromLTRB(40, 40, 40, 44),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2B3A8C),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF5C6BC0), width: 2),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'WAIT UNTIL SOFTWARE LOADING IS COMPLETED !',
+                    textAlign: TextAlign.center,
+                    style: FapText.title,
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Touchscreen disabled for cleaning',
-                  style: FapText.label,
-                ),
-              ],
+                  const SizedBox(height: 28),
+                  Container(
+                    width: 480,
+                    height: 46,
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC2C8CF),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Container(
+                      color: const Color(0xFFDDEFFF),
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: progress.clamp(0.0, 1.0),
+                        child: Container(color: const Color(0xFF1A237E)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'CIDS WILL RESTART AUTOMATICALLY AFTER\n'
+                    'SOFTWARE LOADING PROCESS !',
+                    textAlign: TextAlign.center,
+                    style: FapText.title,
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// FAP CONFIG: simulator settings (temperature unit, mute).
+class _FapConfigPanel extends StatelessWidget {
+  const _FapConfigPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final fap = context.watch<FapProvider>();
+    return Positioned(
+      right: 12,
+      top: 80,
+      width: 420,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: FapColors.panel,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: FapColors.cyan, width: 1.5),
+            boxShadow: const [
+              BoxShadow(color: Color(0xAA000000), blurRadius: 20),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('FAP CONFIG', style: FapText.title),
+                  ),
+                  FapButton(
+                    label: '',
+                    icon: Icons.close,
+                    width: 44,
+                    height: 36,
+                    onTap: fap.toggleConfig,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text('TEMP. UNIT', style: FapText.label),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  FapButton(
+                    label: 'CELSIUS',
+                    width: 130,
+                    active: !fap.tempFahrenheit,
+                    onTap: () => fap.setTempUnit(false),
+                  ),
+                  const SizedBox(width: 10),
+                  FapButton(
+                    label: 'FAHRENHEIT',
+                    width: 130,
+                    active: fap.tempFahrenheit,
+                    onTap: () => fap.setTempUnit(true),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text('MUTE ALL AUDIO', style: FapText.label),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  FapButton(
+                    label: 'MUTE',
+                    width: 130,
+                    active: fap.muteAll,
+                    onTap: () => fap.setMuteAll(!fap.muteAll),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Simulator settings - not part of the aircraft FAP.',
+                style: FapText.label,
+              ),
+            ],
           ),
         ),
       ),

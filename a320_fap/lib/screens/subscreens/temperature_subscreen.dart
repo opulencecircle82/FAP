@@ -53,7 +53,7 @@ class TemperatureSubscreen extends StatelessWidget {
                   SizedBox(
                     width: 92,
                     child: Text(
-                      '${fap.cockpitTemp(z).toStringAsFixed(1)} °C',
+                      fap.formatTemp(fap.cockpitTemp(z)),
                       textAlign: TextAlign.center,
                       style: FapText.monoStyle(
                         size: 16,
@@ -82,15 +82,30 @@ class TemperatureSubscreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const FapPanel(
-            title: 'NOTE',
-            child: Text(
-              'The flight crew selects each zone temperature in the cockpit. '
-              'From the FAP the cabin crew can fine-adjust each zone by '
-              '±2.5 °C in 0.5 °C steps. For a bigger change, ask the flight '
-              'crew.',
-              style: FapText.label,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Expanded(
+                child: FapPanel(
+                  title: 'NOTE',
+                  child: Text(
+                    'The flight crew selects each zone temperature in the '
+                    'cockpit. From the FAP the cabin crew can fine-adjust each '
+                    'zone by ±2.5 °C in 0.5 °C steps. For a bigger change, ask '
+                    'the flight crew.',
+                    style: FapText.label,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              FapButton(
+                label: 'RESET TO COCKPIT\nSELECTED TEMP',
+                width: 230,
+                height: 66,
+                fontSize: 12,
+                onTap: fap.resetTempToCockpit,
+              ),
+            ],
           ),
         ],
       ),
@@ -135,7 +150,7 @@ class _ZoneCard extends StatelessWidget {
           const SizedBox(height: 4),
           const Text('ACTUAL', style: FapText.label),
           Text(
-            '${actual.toStringAsFixed(1)} °C',
+            fap.formatTemp(actual),
             style: FapText.monoStyle(
               size: 50,
               color: FapColors.cyan,
@@ -156,15 +171,11 @@ class _ZoneCard extends StatelessWidget {
             children: [
               readout(
                 'COCKPIT SEL',
-                '${fap.cockpitTemp(zone).toStringAsFixed(1)}°',
+                fap.formatTemp(fap.cockpitTemp(zone)),
                 FapColors.white,
               ),
               readout('FAP ADJ', '$trimText°', FapColors.activeGreen),
-              readout(
-                'TARGET',
-                '${target.toStringAsFixed(1)}°',
-                FapColors.cyan,
-              ),
+              readout('TARGET', fap.formatTemp(target), FapColors.cyan),
             ],
           ),
           const SizedBox(height: 14),

@@ -7,18 +7,33 @@
 //  * Potable water tank 200 L, waste tank 170 L, lavatories A, D and E.
 
 enum FapPage {
-  cabinStatus('CABIN STATUS', 'STATUS'),
-  audio('AUDIO', 'AUDIO'),
-  lights('CABIN LIGHTING', 'LIGHTS'),
-  doors('DOORS / SLIDES', 'DOORS\nSLIDES'),
-  temperature('CABIN TEMPERATURE', 'TEMP'),
-  water('WATER / WASTE', 'WATER\nWASTE'),
-  smoke('SMOKE DETECTION', 'SMOKE'),
-  systemInfo('SYSTEM INFO', 'SYSTEM\nINFO');
+  // Bank 1: cabin operation pages.
+  cabinStatus('CABIN STATUS', 'STATUS', 1),
+  audio('AUDIO', 'AUDIO', 1),
+  lights('CABIN LIGHTING', 'LIGHTS', 1),
+  doors('DOORS / SLIDES', 'DOORS\nSLIDES', 1),
+  temperature('CABIN TEMPERATURE', 'TEMP', 1),
+  water('WATER / WASTE', 'WATER\nWASTE', 1),
+  smoke('SMOKE DETECTION', 'SMOKE\nDETECT', 1),
+  seat('SEAT SETTINGS', 'SEAT\nSETTING', 1),
+  systemInfo('SYSTEM INFO', 'SYSTEM\nINFO', 1),
+  // Bank 2: CAM programming and maintenance pages.
+  cabinProg('CABIN PROGRAMMING', 'CABIN\nPROG', 2),
+  layout('LAYOUT SELECTION', 'LAYOUT\nSELECT', 2),
+  level('LEVEL ADJUSTMENT', 'LEVEL\nADJUST', 2),
+  swLoad('SOFTWARE LOADING', 'SW\nLOAD', 2),
+  fapSetup('FAP SET-UP', 'FAP\nSET-UP', 2);
 
-  const FapPage(this.title, this.tabLabel);
+  const FapPage(this.title, this.tabLabel, this.bank);
   final String title;
   final String tabLabel;
+
+  /// Which row of the page selector the tab sits in (1 or 2).
+  final int bank;
+
+  /// Pages that ask for the CAM access code.
+  bool get protected =>
+      this == cabinProg || this == layout || this == level || this == swLoad;
 }
 
 enum LightLevel {
@@ -32,10 +47,13 @@ enum LightLevel {
   final int percent;
 }
 
+/// Lighting zones. The cabin zones follow the passenger classes of the
+/// active CAM layout (a 1-class layout only has TOURIST CLASS).
 enum LightZone {
   fwdEntry('FWD ENTRY'),
-  fwdCabin('FWD CABIN'),
-  aftCabin('AFT CABIN'),
+  first('FIRST CLASS'),
+  business('BUSINESS CLASS'),
+  tourist('TOURIST CLASS'),
   aftEntry('AFT ENTRY');
 
   const LightZone(this.label);
