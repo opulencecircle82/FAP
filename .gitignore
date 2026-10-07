@@ -2,3 +2,4 @@
 landing/public/simulator/
 *.apk
 .deploy-gh-pages/
+PRIVATE_*

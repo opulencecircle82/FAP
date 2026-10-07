@@ -1,9 +1,11 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:aisat_fap/models/cabin_setup.dart';
 import 'package:aisat_fap/models/fap_state.dart';
 import 'package:aisat_fap/models/pram_item.dart';
 import 'package:aisat_fap/services/access_lock.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:aisat_fap/providers/fap_provider.dart';
 import 'package:aisat_fap/services/fap_audio.dart';
 import 'package:fake_async/fake_async.dart';
@@ -553,28 +555,60 @@ void main() {
       });
     });
 
-    // The real code is never written in this public repository; run with
-    // FAP_OPEN_CODE=<code> to test it.
-    final openCode = Platform.environment['FAP_OPEN_CODE'] ?? '';
+    // License activation against a fake Supabase RPC.
+    http.Client fakeServer(
+      Map<String, dynamic> Function(Map body) reply, {
+      List<Map>? seen,
+    }) {
+      return MockClient((req) async {
+        expect(req.url.path, '/rest/v1/rpc/a320_redeem_license');
+        expect(req.headers['apikey'], startsWith('sb_publishable_'));
+        final body = jsonDecode(req.body) as Map;
+        seen?.add(body);
+        return http.Response(jsonEncode(reply(body)), 200);
+      });
+    }
 
-    test('app open code', () {
-      expect(AccessLock.matches(openCode), isTrue);
-      expect(AccessLock.matches(' $openCode '), isTrue);
-      expect(AccessLock.matches(openCode.toLowerCase()), isFalse);
-      expect(AccessLock.matches(''), isFalse);
-    }, skip: openCode.isEmpty ? 'set FAP_OPEN_CODE to test the code' : false);
+    test('valid code activates and is remembered; device id is sent', () async {
+      final seen = <Map>[];
+      AccessLock.clientFactory = () => fakeServer(
+        (b) => b['p_code'] == 'A320-K92A'
+            ? {'ok': true}
+            : {'ok': false, 'reason': 'INVALID'},
+        seen: seen,
+      );
+      expect(await AccessLock.isUnlocked(), isFalse);
+      expect(await AccessLock.activate('A320-XXXX'), LicenseResult.invalid);
+      expect(await AccessLock.isUnlocked(), isFalse);
+      expect(await AccessLock.activate(' A320-K92A '), LicenseResult.ok);
+      expect(await AccessLock.isUnlocked(), isTrue);
+      expect(seen.last['p_code'], 'A320-K92A');
+      expect(seen.first['p_device'], seen.last['p_device']); // same device
+      expect((seen.first['p_device'] as String).length, 32);
+    });
 
-    test(
-      'unlock is remembered on the device',
-      skip: openCode.isEmpty,
-      () async {
-        expect(await AccessLock.isUnlocked(), isFalse);
-        expect(await AccessLock.unlock('wrong'), isFalse);
-        expect(await AccessLock.isUnlocked(), isFalse);
-        expect(await AccessLock.unlock(openCode), isTrue);
-        expect(await AccessLock.isUnlocked(), isTrue);
-      },
-    );
+    test('server reasons map to messages', () async {
+      for (final (reason, result) in [
+        ('ALREADY_USED', LicenseResult.alreadyUsed),
+        ('TOO_MANY_ATTEMPTS', LicenseResult.tooManyAttempts),
+        ('SOMETHING_ELSE', LicenseResult.error),
+      ]) {
+        AccessLock.clientFactory = () =>
+            fakeServer((_) => {'ok': false, 'reason': reason});
+        expect(await AccessLock.activate('A320-K92A'), result);
+      }
+      expect(await AccessLock.isUnlocked(), isFalse);
+    });
+
+    test('offline or server error never unlocks', () async {
+      AccessLock.clientFactory = () =>
+          MockClient((_) async => throw http.ClientException('no network'));
+      expect(await AccessLock.activate('A320-K92A'), LicenseResult.offline);
+      AccessLock.clientFactory = () =>
+          MockClient((_) async => http.Response('oops', 500));
+      expect(await AccessLock.activate('A320-K92A'), LicenseResult.error);
+      expect(await AccessLock.isUnlocked(), isFalse);
+    });
   });
 
   group('seats and passenger calls', () {

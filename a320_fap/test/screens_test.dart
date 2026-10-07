@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:aisat_fap/main.dart';
 import 'package:aisat_fap/models/fap_state.dart';
 import 'package:aisat_fap/providers/fap_provider.dart';
+import 'package:aisat_fap/services/access_lock.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:aisat_fap/widgets/top_status_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -157,8 +161,6 @@ void main() {
     await teardown(tester);
   });
 
-  final openCode = Platform.environment['FAP_OPEN_CODE'] ?? '';
-
   testWidgets('notice shows at every start on an unlocked device', (
     tester,
   ) async {
@@ -177,28 +179,43 @@ void main() {
     await teardown(tester);
   });
 
-  testWidgets('open code is asked once', skip: openCode.isEmpty, (
-    tester,
-  ) async {
+  testWidgets('license activation, then notice, then panel', (tester) async {
     SharedPreferences.setMockInitialValues({});
+    AccessLock.clientFactory = () => MockClient((req) async {
+      final code = (jsonDecode(req.body) as Map)['p_code'];
+      return http.Response(
+        jsonEncode(
+          code == 'A320-K92A'
+              ? {'ok': true}
+              : {'ok': false, 'reason': 'ALREADY_USED'},
+        ),
+        200,
+      );
+    });
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
     fap = FapProvider(audio: FakeAudio(), random: Random(7));
     await tester.pumpWidget(AisatFapApp(fap: fap, unlocked: false));
     await tester.pump();
     await shot(tester, 'unlock_screen');
-    await tester.enterText(find.byType(EditableText), 'wrong');
-    await tester.tap(find.text('UNLOCK'));
+    await tester.enterText(find.byType(EditableText), 'A320-M82P');
+    await tester.tap(find.text('ACTIVATE'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
     await tester.pumpAndSettle();
-    expect(find.text('Wrong code. Please try again.'), findsOneWidget);
-    await tester.enterText(find.byType(EditableText), openCode);
-    await tester.tap(find.text('UNLOCK'));
+    expect(find.textContaining('already been used'), findsOneWidget);
+    await shot(tester, 'unlock_screen_used');
+    await tester.enterText(find.byType(EditableText), 'A320-K92A');
+    await tester.tap(find.text('ACTIVATE'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('UNLOCK'), findsNothing);
+    expect(find.text('ACTIVATE'), findsNothing);
     // The notice comes next, before the panel.
     expect(find.text('IMPORTANT NOTICE & DISCLAIMER'), findsOneWidget);
-    expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsNothing);
     await shot(tester, 'disclaimer_screen');
     await tester.tap(find.text('I AGREE & CONTINUE'));
     await tester.pump();

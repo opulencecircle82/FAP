@@ -60,7 +60,24 @@ const shots = [
 const steps = [
   "Scan the QR code with the tablet camera, or tap Download APK.",
   'Allow "Install unknown apps" for your browser when Android asks.',
-  "Open AISAT FAP and hold the tablet in landscape.",
+  site.licensing
+    ? "Open the app, enter your license code (internet needed once), and hold the tablet in landscape."
+    : "Open the app and hold the tablet in landscape.",
+];
+
+const notice = [
+  [
+    "NOT AN OFFICIALLY CERTIFIED FTD",
+    "This application is a classroom supplement and is NOT certified by Airbus, FAA, EASA, CAAP, or any civil aviation authority for official type-rating or flight training credits.",
+  ],
+  [
+    "NO AFFILIATION",
+    "\"A320\" and related aircraft trademarks belong to Airbus. Overdrive Interactive is an independent entity with no official endorsement or affiliation with Airbus.",
+  ],
+  [
+    "ACCURACY & LIABILITY",
+    "While modeled for realistic interaction, operational variances may exist. This software must NOT be used for real-world aircraft operation, checklist validation, or actual emergency procedures. Overdrive Interactive assumes no liability for misuse.",
+  ],
 ];
 
 export default async function Home() {
@@ -75,12 +92,14 @@ export default async function Home() {
       <header className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-5 sm:px-8">
         <Logo size={40} />
         <span className="text-sm font-extrabold tracking-[0.25em]">
-          AISAT AVIATION
+          OVERDRIVE INTERACTIVE
+          <span className="ml-2 font-mono text-[10px] tracking-[0.3em] text-cyan">HUB</span>
         </span>
         <nav className="ml-auto hidden items-center gap-7 text-sm text-silver md:flex">
           <a href="#features" className="hover:text-white">Features</a>
           <a href="#panel" className="hover:text-white">The Panel</a>
           <a href="#download" className="hover:text-white">Download</a>
+          <a href="#notice" className="hover:text-white">Notice</a>
         </nav>
         <a
           href={site.repoUrl}
@@ -101,7 +120,7 @@ export default async function Home() {
               AIRBUS A320 · CIDS · FAP
             </p>
             <h1 className="mt-3 text-4xl leading-[1.1] font-extrabold sm:text-5xl">
-              AISAT Airbus A320 FAP Mobile &amp; Tablet Simulator
+              A320 FAP Simulator
             </h1>
             <p className="mt-5 text-lg leading-relaxed text-silver">
               Train on a full replica of the Airbus A320 Flight Attendant
@@ -214,6 +233,25 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* License */}
+        {site.licensing && (
+        <section className="mx-auto max-w-6xl px-4 pb-4 sm:px-8">
+          <div className="rounded-2xl border border-line bg-panel/70 p-6 sm:flex sm:items-center sm:gap-6">
+            <Icon d="M15 7a4 4 0 1 1-3.9 5H4v3h2v2h3v-2h2.1A4 4 0 0 1 15 7z" className="size-10 shrink-0 text-cyan" />
+            <div className="mt-3 sm:mt-0">
+              <h3 className="text-lg font-extrabold">License code required</h3>
+              <p className="mt-1 text-sm leading-relaxed text-silver">
+                The first time the app opens, enter your license code
+                (for example <span className="font-mono text-cyan">A320-XXXX</span>).
+                Activation needs an internet connection once. Each code works
+                on one device only; after activation the simulator runs offline.
+                Ask your instructor for a code.
+              </p>
+            </div>
+          </div>
+        </section>
+        )}
+
         {/* Download */}
         <section id="download" className="mx-auto max-w-6xl scroll-mt-8 px-4 py-20 sm:px-8">
           <div className="grid items-center gap-10 rounded-3xl border border-cyan/30 bg-panel/80 p-6 shadow-[0_0_60px_rgb(0_162_232/0.12)] sm:p-10 md:grid-cols-[auto_1fr]">
@@ -221,11 +259,11 @@ export default async function Home() {
               <div
                 className="size-52 rounded-2xl bg-white p-4 [&>svg]:size-full"
                 role="img"
-                aria-label={`QR code linking to ${site.apkName}`}
+                aria-label="QR code linking to the Android app"
                 dangerouslySetInnerHTML={{ __html: qrSvg }}
               />
               <p className="mt-3 text-center font-mono text-sm font-bold text-cyan">
-                {site.apkName}
+                Android APK · v{site.version}
               </p>
             </div>
             <div>
@@ -255,10 +293,33 @@ export default async function Home() {
             </div>
           </div>
         </section>
+        {/* Notice */}
+        <section id="notice" className="mx-auto max-w-6xl scroll-mt-8 px-4 pb-20 sm:px-8">
+          <div className="rounded-2xl border border-fap-amber/60 bg-panel/80 p-6 sm:p-8">
+            <h2 className="text-xl font-extrabold tracking-wide text-fap-amber">
+              IMPORTANT NOTICE &amp; DISCLAIMER
+            </h2>
+            <p className="mt-3 text-silver">
+              This software (A320 FAP Simulator) is developed by Overdrive
+              Interactive for academic, familiarization, and educational
+              training purposes only.
+            </p>
+            <ol className="mt-4 space-y-3">
+              {notice.map(([title, body], i) => (
+                <li key={title} className="flex gap-3 text-sm leading-relaxed text-silver">
+                  <span className="font-extrabold text-cyan">{i + 1}.</span>
+                  <span>
+                    <strong className="text-white">{title}:</strong> {body}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-line px-4 py-8 text-center text-xs text-[#5e7184]">
-        For AISAT Aviation College cabin crew training only. Not for
+        © Overdrive Interactive · A320 FAP Simulator is a training aid, not for
         operational use. Always follow your airline cabin crew manual.
       </footer>
     </div>
@@ -267,16 +328,15 @@ export default async function Home() {
 
 function Logo({ size, glow = false }: { size: number; glow?: boolean }) {
   return (
-    <Image
-      src={asset("/aisat-logo.png")}
-      alt="AISAT Aviation"
-      width={size}
-      height={size}
-      priority={glow}
-      className={`rounded-full border-2 border-cyan/50 ${
+    <span
+      style={{ width: size, height: size, fontSize: size * 0.36 }}
+      className={`grid shrink-0 place-items-center rounded-2xl border-2 border-cyan/60 bg-gradient-to-br from-[#0e2a3d] to-[#071019] font-mono font-extrabold text-cyan ${
         glow ? "shadow-[0_0_40px_rgb(0_162_232/0.45)]" : ""
       }`}
-    />
+      aria-label="Overdrive Interactive"
+    >
+      OI
+    </span>
   );
 }
 

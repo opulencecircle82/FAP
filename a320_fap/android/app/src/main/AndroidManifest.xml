@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- License activation is checked online (Supabase). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="AISAT A320 FAP"
         android:name="${applicationName}"

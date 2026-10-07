@@ -4,7 +4,8 @@ import '../config.dart';
 import '../services/access_lock.dart';
 import '../theme/fap_theme.dart';
 
-/// Asks for the open code the first time the app runs on a device.
+/// Asks for a license code the first time the app runs on a device.
+/// Activation needs the internet once; each code works on one device.
 class UnlockScreen extends StatefulWidget {
   const UnlockScreen({super.key, required this.onUnlocked});
 
@@ -17,9 +18,8 @@ class UnlockScreen extends StatefulWidget {
 class _UnlockScreenState extends State<UnlockScreen> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-  bool _error = false;
+  String? _error;
   bool _busy = false;
-  bool _obscure = true;
 
   @override
   void dispose() {
@@ -28,22 +28,36 @@ class _UnlockScreenState extends State<UnlockScreen> {
     super.dispose();
   }
 
+  static String _message(LicenseResult r) => switch (r) {
+    LicenseResult.ok => '',
+    LicenseResult.invalid =>
+      'Invalid license code. Please check and try again.',
+    LicenseResult.alreadyUsed =>
+      'This code has already been used on another device.',
+    LicenseResult.tooManyAttempts =>
+      'Too many attempts. Please wait 15 minutes and try again.',
+    LicenseResult.offline =>
+      'No internet connection. Activation must be done online.',
+    LicenseResult.error => 'Activation failed. Please try again later.',
+  };
+
   Future<void> _submit() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final ok = await AccessLock.unlock(_controller.text);
+    if (_busy || _controller.text.trim().isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final result = await AccessLock.activate(_controller.text);
     if (!mounted) return;
-    if (ok) {
+    if (result == LicenseResult.ok) {
       widget.onUnlocked();
-    } else {
-      // Wrong code: clear it and keep the cursor in the field.
-      _controller.clear();
-      setState(() {
-        _busy = false;
-        _error = true;
-      });
-      _focus.requestFocus();
+      return;
     }
+    setState(() {
+      _busy = false;
+      _error = _message(result);
+    });
+    _focus.requestFocus();
   }
 
   @override
@@ -54,7 +68,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 440),
             child: Container(
               padding: const EdgeInsets.fromLTRB(28, 30, 28, 28),
               decoration: BoxDecoration(
@@ -66,11 +80,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.lock_outline,
-                    color: FapColors.cyan,
-                    size: 44,
-                  ),
+                  const Icon(Icons.key, color: FapColors.cyan, size: 44),
                   const SizedBox(height: 14),
                   Text(
                     AppConfig.appName.toUpperCase(),
@@ -79,7 +89,9 @@ class _UnlockScreenState extends State<UnlockScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Enter the open code to use the simulator on this device.',
+                    'Enter your license code to activate the simulator on '
+                    'this device. Activation needs an internet connection, '
+                    'and each code can be used on one device only.',
                     textAlign: TextAlign.center,
                     style: FapText.label,
                   ),
@@ -88,27 +100,21 @@ class _UnlockScreenState extends State<UnlockScreen> {
                     controller: _controller,
                     focusNode: _focus,
                     autofocus: true,
-                    obscureText: _obscure,
+                    enabled: !_busy,
+                    textCapitalization: TextCapitalization.characters,
                     onSubmitted: (_) => _submit(),
                     onChanged: (_) {
-                      if (_error) setState(() => _error = false);
+                      if (_error != null) setState(() => _error = null);
                     },
                     style: FapText.monoStyle(size: 18, weight: FontWeight.w700),
                     decoration: InputDecoration(
-                      labelText: 'OPEN CODE',
-                      errorText: _error
-                          ? 'Wrong code. Please try again.'
-                          : null,
+                      labelText: 'LICENSE CODE',
+                      hintText: 'A320-XXXX',
+                      errorText: _error,
+                      errorMaxLines: 2,
                       filled: true,
                       fillColor: const Color(0xFF050B11),
                       border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        tooltip: _obscure ? 'Show code' : 'Hide code',
-                        icon: Icon(
-                          _obscure ? Icons.visibility : Icons.visibility_off,
-                        ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -124,7 +130,13 @@ class _UnlockScreenState extends State<UnlockScreen> {
                         letterSpacing: 2,
                       ),
                     ),
-                    child: const Text('UNLOCK'),
+                    child: _busy
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          )
+                        : const Text('ACTIVATE'),
                   ),
                 ],
               ),

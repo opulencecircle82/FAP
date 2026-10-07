@@ -11,11 +11,11 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.pageUrl),
-  title: "AISAT A320 FAP Simulator",
+  title: "Overdrive Interactive Hub · A320 FAP Simulator",
   description:
-    "Airbus A320 CIDS Flight Attendant Panel simulator for AISAT Aviation College cabin crew trainees. Free Android tablet app, works offline.",
+    "A320 FAP Simulator by Overdrive Interactive: an Airbus A320 CIDS Flight Attendant Panel trainer for cabin crew students. Android tablet app and web simulator.",
   openGraph: {
-    title: "AISAT Airbus A320 FAP Mobile & Tablet Simulator",
+    title: "A320 FAP Simulator · Overdrive Interactive",
     description:
       "Train on a full replica of the A320 Flight Attendant Panel. Download the Android app.",
     images: [asset("/screens/lights.png")],
