@@ -650,6 +650,21 @@ void main() {
       expect(await AccessLock.isUnlocked(), isFalse);
     });
 
+    test('old open-code unlock and copied app data do not unlock', () async {
+      // Updated from v3.2, which was unlocked with the old shared code.
+      SharedPreferences.setMockInitialValues({'fap_unlocked_v1': true});
+      expect(await AccessLock.isUnlocked(), isFalse);
+
+      // Activated on device A...
+      AccessLock.androidIdReader = () async => '9774d56d682e549c';
+      AccessLock.clientFactory = () => fakeServer((_) => {'ok': true});
+      expect(await AccessLock.activate('A320-k7Rm9Qx2'), LicenseResult.ok);
+      expect(await AccessLock.isUnlocked(), isTrue);
+      // ...then the app data is restored onto device B (Android backup).
+      AccessLock.androidIdReader = () async => 'ffff000011112222';
+      expect(await AccessLock.isUnlocked(), isFalse);
+    });
+
     test('server reasons map to messages', () async {
       for (final (reason, result) in [
         ('ALREADY_USED', LicenseResult.alreadyUsed),

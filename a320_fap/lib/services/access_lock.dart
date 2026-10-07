@@ -29,7 +29,10 @@ class AccessLock {
   static const _publishableKey =
       'sb_publishable_j1RmQ4wKmspwz0URRLvdTQ_7_iYrvGi';
 
-  static const _unlockedKey = 'fap_unlocked_v1';
+  // v1 was the old shared open code (v3.0-v3.2); it no longer unlocks.
+  // The value is the device id, so app data copied to another device
+  // (e.g. by Android backup) does not unlock it.
+  static const _licenseKey = 'fap_license_v2';
   static const _deviceKey = 'fap_device_id';
   static const _timeout = Duration(seconds: 15);
 
@@ -47,7 +50,8 @@ class AccessLock {
   static Future<bool> isUnlocked() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_unlockedKey) ?? false;
+      final saved = prefs.getString(_licenseKey);
+      return saved != null && saved == await deviceId();
     } catch (_) {
       return false;
     }
@@ -58,7 +62,9 @@ class AccessLock {
   /// is unavailable) a random id stored with the app.
   static Future<String> deviceId() async {
     try {
-      final androidId = await androidIdReader();
+      final androidId = await androidIdReader().timeout(
+        const Duration(seconds: 3),
+      );
       if (androidId != null && androidId.isNotEmpty) {
         return sha256.convert(utf8.encode('a320-fap:$androidId')).toString();
       }
@@ -113,7 +119,7 @@ class AccessLock {
       if (body is! Map) return LicenseResult.error;
       if (body['ok'] == true) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_unlockedKey, true);
+        await prefs.setString(_licenseKey, device);
         return LicenseResult.ok;
       }
       return switch (body['reason']) {

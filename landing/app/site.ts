@@ -9,8 +9,8 @@ export const supabase = {
 export const site = {
   /** Show the license-code text once the activation database is live. */
   licensing: true,
-  version: "3.3",
-  apkName: "AISAT_FAP_v3.3.apk",
+  version: "3.4",
+  apkName: "AISAT_FAP_v3.4.apk",
   repoUrl: "https://github.com/opulencecircle82/FAP",
   pageUrl: "https://opulencecircle82.github.io/FAP/",
   get apkUrl() {

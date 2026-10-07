@@ -232,7 +232,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('fap_unlocked_v1'), isTrue);
+    expect(prefs.getString('fap_license_v2'), isNotNull);
     await teardown(tester);
   });
 
@@ -255,7 +255,7 @@ void main() {
     expect(find.text('ACTIVATE'), findsNothing);
     expect(find.text('IMPORTANT NOTICE & DISCLAIMER'), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('fap_unlocked_v1'), isTrue);
+    expect(prefs.getString('fap_license_v2'), isNotNull);
     await teardown(tester);
   });
 
