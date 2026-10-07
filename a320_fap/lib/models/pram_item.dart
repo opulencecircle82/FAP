@@ -1,6 +1,7 @@
 /// A pre-recorded announcement (PRAM) entry.
 ///
-/// Each item is a recorded PA announcement in `assets/pram/<id>.mp3`.
+/// Each item is a recorded PA announcement in `assets/pram/<id>.mp3`
+/// (regenerate with `python tool/gen_pram.py` after editing a script).
 class PramItem {
   const PramItem({
     required this.id,
@@ -15,6 +16,7 @@ class PramItem {
   final String script;
 }
 
+/// Announcements in the order of a flight, from boarding to arrival.
 const pramLibrary = <PramItem>[
   PramItem(
     id: 'welcome',
@@ -46,8 +48,38 @@ const pramLibrary = <PramItem>[
         'your attention.',
   ),
   PramItem(
-    id: 'seatbelt',
+    id: 'nosmoking',
     code: '030',
+    title: 'NO SMOKING',
+    script:
+        'Ladies and gentlemen, this is a non-smoking flight. Smoking, '
+        'including electronic cigarettes, is not permitted anywhere on '
+        'board, including the lavatories. The lavatories are fitted with '
+        'smoke detectors. Thank you for your cooperation.',
+  ),
+  PramItem(
+    id: 'devices',
+    code: '040',
+    title: 'ELECTRONIC DEVICES',
+    script:
+        'Ladies and gentlemen, all portable electronic devices must now be '
+        'switched to flight mode. Laptops and other large devices must be '
+        'stowed in the overhead bins or under the seat in front of you for '
+        'take-off and landing. Thank you.',
+  ),
+  PramItem(
+    id: 'takeoff',
+    code: '050',
+    title: 'PREPARE FOR TAKE-OFF',
+    script:
+        'Ladies and gentlemen, we are now ready for departure. Please make '
+        'sure your seat belt is fastened, your seat back is upright, your '
+        'tray table is stowed, your window shade is open, and your armrests '
+        'are down. Cabin crew, please be seated for take-off.',
+  ),
+  PramItem(
+    id: 'seatbelt',
+    code: '060',
     title: 'FASTEN SEAT BELTS',
     script:
         'Ladies and gentlemen, the captain has switched on the fasten '
@@ -55,8 +87,18 @@ const pramLibrary = <PramItem>[
         'belts. The lavatories should not be used at this time. Thank you.',
   ),
   PramItem(
+    id: 'seatbeltoff',
+    code: '070',
+    title: 'SEAT BELT SIGN OFF',
+    script:
+        'Ladies and gentlemen, the captain has switched off the fasten seat '
+        'belt sign. You may now move about the cabin. However, while you are '
+        'seated, we recommend that you keep your seat belt fastened at all '
+        'times, as we may experience unexpected turbulence. Thank you.',
+  ),
+  PramItem(
     id: 'turbulence',
-    code: '040',
+    code: '080',
     title: 'TURBULENCE ALERT',
     script:
         'Ladies and gentlemen, we are experiencing an area of '
@@ -65,8 +107,28 @@ const pramLibrary = <PramItem>[
         'Thank you.',
   ),
   PramItem(
+    id: 'medical',
+    code: '090',
+    title: 'DOCTOR ON BOARD',
+    script:
+        'Ladies and gentlemen, if there is a doctor, a nurse, or any medical '
+        'professional on board, please identify yourself to a member of the '
+        'cabin crew by pressing your call button. Thank you.',
+  ),
+  PramItem(
+    id: 'delay',
+    code: '100',
+    title: 'GROUND DELAY',
+    script:
+        'Ladies and gentlemen, we are currently waiting for clearance from '
+        'air traffic control, and we expect a short delay before departure. '
+        'Please remain seated with your seat belt fastened. We apologize for '
+        'the inconvenience, and we will keep you informed. Thank you for '
+        'your patience.',
+  ),
+  PramItem(
     id: 'descent',
-    code: '050',
+    code: '110',
     title: 'DESCENT PREPARATION',
     script:
         'Ladies and gentlemen, we have started our descent. Please '
@@ -76,8 +138,17 @@ const pramLibrary = <PramItem>[
         'Cabin crew, prepare the cabin for landing.',
   ),
   PramItem(
+    id: 'landing',
+    code: '120',
+    title: 'FINAL APPROACH',
+    script:
+        'Ladies and gentlemen, we are now on our final approach. Please make '
+        'sure your seat belt is securely fastened and all your belongings '
+        'are stowed. Cabin crew, please be seated for landing.',
+  ),
+  PramItem(
     id: 'arrival',
-    code: '060',
+    code: '130',
     title: 'ARRIVAL / DISEMBARK',
     script:
         'Ladies and gentlemen, welcome to your destination. Please remain '

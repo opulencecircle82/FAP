@@ -217,11 +217,12 @@ class _PramPanel extends StatelessWidget {
                   child: fap.memo.isEmpty
                       ? const Center(
                           child: Text(
-                            'Select an announcement and press  →',
+                            'Select an announcement and press  ←',
                             style: FapText.label,
                           ),
                         )
                       : ListView(
+                          primary: false,
                           padding: EdgeInsets.zero,
                           children: [
                             for (var i = 0; i < fap.memo.length; i++)
@@ -291,13 +292,14 @@ class _PramPanel extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 96, 10, 0),
             child: Column(
               children: [
+                // MEMO is on the left, SELECT on the right: ← copies the
+                // selected announcement into MEMO, → takes it back out.
                 FapButton(
                   label: '',
                   icon: Icons.arrow_back,
                   width: 50,
                   height: 46,
-                  enabled: fap.memo.isNotEmpty,
-                  onTap: fap.memoRemove,
+                  onTap: fap.memoAdd,
                 ),
                 const SizedBox(height: 8),
                 FapButton(
@@ -305,7 +307,8 @@ class _PramPanel extends StatelessWidget {
                   icon: Icons.arrow_forward,
                   width: 50,
                   height: 46,
-                  onTap: fap.memoAdd,
+                  enabled: fap.memo.isNotEmpty,
+                  onTap: fap.memoRemove,
                 ),
                 const SizedBox(height: 18),
                 FapButton(
@@ -333,23 +336,30 @@ class _PramPanel extends StatelessWidget {
               children: [
                 const Text('SELECT', style: FapText.label),
                 const SizedBox(height: 4),
-                for (final item in pramLibrary)
-                  _ListRow(
-                    text: '${item.code}  ${item.title}',
-                    selected: fap.selectedPram == item.id,
-                    trailing: fap.playingAnnouncement == item.id
-                        ? Icon(
-                            Icons.campaign,
-                            size: 18,
-                            color: blink
-                                ? (fap.selectedPram == item.id
-                                      ? Colors.black
-                                      : FapColors.activeGreen)
-                                : Colors.transparent,
-                          )
-                        : null,
-                    onTap: () => fap.selectPram(item.id),
+                SizedBox(
+                  height: 318,
+                  child: _ScrollList(
+                    children: [
+                      for (final item in pramLibrary)
+                        _ListRow(
+                          text: '${item.code}  ${item.title}',
+                          selected: fap.selectedPram == item.id,
+                          trailing: fap.playingAnnouncement == item.id
+                              ? Icon(
+                                  Icons.campaign,
+                                  size: 18,
+                                  color: blink
+                                      ? (fap.selectedPram == item.id
+                                            ? Colors.black
+                                            : FapColors.activeGreen)
+                                      : Colors.transparent,
+                                )
+                              : null,
+                          onTap: () => fap.selectPram(item.id),
+                        ),
+                    ],
                   ),
+                ),
                 const SizedBox(height: 10),
                 FapButton(
                   label: 'DIRECT PLAY',
@@ -544,4 +554,34 @@ class _ChimePanel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Scrollable list with its own controller and an always-visible scrollbar.
+class _ScrollList extends StatefulWidget {
+  const _ScrollList({required this.children});
+  final List<Widget> children;
+
+  @override
+  State<_ScrollList> createState() => _ScrollListState();
+}
+
+class _ScrollListState extends State<_ScrollList> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scrollbar(
+    controller: _controller,
+    thumbVisibility: true,
+    child: ListView(
+      controller: _controller,
+      padding: const EdgeInsets.only(right: 10),
+      children: widget.children,
+    ),
+  );
 }
