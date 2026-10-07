@@ -30,9 +30,6 @@ class FapColors {
   static const bezelLight = Color(0xFFC2C8CF);
   static const bezelDark = Color(0xFF8C95A0);
 
-  // AISAT brand
-  static const aisatCyan = Color(0xFF00A2E8);
-  static const aisatSilver = Color(0xFFA8B2D1);
   static const landingBg = Color(0xFF0A1520);
 }
 

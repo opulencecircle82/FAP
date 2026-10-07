@@ -665,6 +665,20 @@ void main() {
       expect(await AccessLock.isUnlocked(), isFalse);
     });
 
+    test('the demo code is never a license and never sent', () async {
+      var calls = 0;
+      AccessLock.clientFactory = () => MockClient((_) async {
+        calls++;
+        return http.Response(jsonEncode({'ok': true}), 200);
+      });
+      expect(AccessLock.isDemoCode(' a320-demo '), isTrue);
+      expect(await AccessLock.activate('A320-DEMO'), LicenseResult.invalid);
+      expect(calls, 0);
+      expect(await AccessLock.isUnlocked(), isFalse);
+      await AccessLock.startDemo();
+      expect(await AccessLock.isDemo(), isTrue);
+    });
+
     test('server reasons map to messages', () async {
       for (final (reason, result) in [
         ('ALREADY_USED', LicenseResult.alreadyUsed),

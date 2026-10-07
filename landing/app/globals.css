@@ -22,7 +22,7 @@ body {
   color: #ffffff;
 }
 
-/* Faint concentric rings echoing the AISAT logo backdrop. */
+/* Faint concentric rings echoing the app icon backdrop. */
 .radar {
   background:
     radial-gradient(circle at 78% 12%, rgb(0 162 232 / 0.14), transparent 30%),

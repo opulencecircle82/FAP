@@ -7,6 +7,7 @@ import '../../providers/fap_provider.dart';
 import '../../services/fap_audio.dart';
 import '../../theme/fap_theme.dart';
 import '../../widgets/blink.dart';
+import '../../widgets/demo_gate.dart';
 import '../../widgets/fap_button.dart';
 
 /// AUDIO page: boarding music (BGM1 channels), pre-recorded announcements
@@ -80,12 +81,15 @@ class _BgmPanel extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              FapButton(
-                label: 'ON/OFF',
-                width: 84,
-                height: 92,
-                active: fap.musicPlaying,
-                onTap: fap.bgmToggle,
+              // The one audio function of the demo version.
+              DemoAllowed(
+                child: FapButton(
+                  label: 'ON/OFF',
+                  width: 84,
+                  height: 92,
+                  active: fap.musicPlaying,
+                  onTap: fap.bgmToggle,
+                ),
               ),
               _UpDown(
                 label: 'VOL. ${fap.bgmVolume}',

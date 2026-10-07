@@ -6,6 +6,7 @@ import '../providers/fap_provider.dart';
 import '../theme/fap_theme.dart';
 import '../widgets/blink.dart';
 import '../widgets/bottom_touch_nav.dart';
+import '../widgets/demo_gate.dart';
 import '../widgets/fap_button.dart';
 import '../widgets/hardware_bezel_strip.dart';
 import '../widgets/top_status_bar.dart';
@@ -23,32 +24,102 @@ import 'subscreens/sw_load_subscreen.dart';
 import 'subscreens/system_info_subscreen.dart';
 import 'subscreens/temperature_subscreen.dart';
 import 'subscreens/water_subscreen.dart';
+import 'unlock_screen.dart';
 
 /// The FAP unit: metallic bezel, 16:9 touchscreen and hard-key strip.
 ///
 /// It is laid out once on a fixed design canvas and scaled to fit the
 /// device, so the panel looks identical on every tablet and browser.
 class FapSimulatorScreen extends StatelessWidget {
-  const FapSimulatorScreen({super.key});
+  const FapSimulatorScreen({super.key, this.demo = false, this.onLicensed});
 
   static const route = '/fap';
 
   static const _screenSize = Size(1280, 720);
   static const _deviceSize = Size(1350, 940);
 
+  /// Demo version: only the [DemoAllowed] controls work; touching anything
+  /// else asks for the license code.
+  final bool demo;
+  final VoidCallback? onLicensed;
+
   @override
   Widget build(BuildContext context) {
+    void askLicense() =>
+        showLicenseDialog(context, onUnlocked: () => onLicensed?.call());
     return Scaffold(
       backgroundColor: const Color(0xFF070D13),
       body: SafeArea(
-        // Tight constraints so the panel scales UP on large screens too,
-        // not only down on small ones.
-        child: SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: SizedBox.fromSize(size: _deviceSize, child: const _Device()),
-          ),
+        child: Column(
+          children: [
+            if (demo) _DemoBar(onEnterCode: askLicense),
+            Expanded(
+              child: DemoGate(
+                active: demo,
+                onBlocked: askLicense,
+                // Tight constraints so the panel scales UP on large screens
+                // too, not only down on small ones.
+                child: SizedBox.expand(
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: SizedBox.fromSize(
+                      size: _deviceSize,
+                      child: const _Device(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _DemoBar extends StatelessWidget {
+  const _DemoBar({required this.onEnterCode});
+  final VoidCallback onEnterCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      color: const Color(0xFF2A1F05),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_open, color: FapColors.amber, size: 20),
+          const SizedBox(width: 8),
+          const Text(
+            'DEMO VERSION',
+            style: TextStyle(
+              color: FapColors.amber,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Only LIGHTS: MAIN ON/OFF and AUDIO: boarding music ON/OFF work.',
+              overflow: TextOverflow.ellipsis,
+              style: FapText.label,
+            ),
+          ),
+          FilledButton(
+            onPressed: onEnterCode,
+            style: FilledButton.styleFrom(
+              backgroundColor: FapColors.amber,
+              foregroundColor: Colors.black,
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text(
+              'ENTER LICENSE CODE',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }

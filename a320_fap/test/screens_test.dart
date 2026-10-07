@@ -288,6 +288,151 @@ void main() {
     await teardown(tester);
   });
 
+  testWidgets('demo: 1 light + 1 audio, everything else asks for a code', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    AccessLock.androidIdReader = () async => null;
+    AccessLock.clientFactory = () => MockClient((req) async {
+      if (req.url.path.endsWith('a320_restore_license')) {
+        return http.Response(jsonEncode({'ok': false}), 200);
+      }
+      final code = (jsonDecode(req.body) as Map)['p_code'];
+      return http.Response(
+        jsonEncode(
+          code == 'A320-k7Rm9Qx2'
+              ? {'ok': true}
+              : {'ok': false, 'reason': 'INVALID'},
+        ),
+        200,
+      );
+    });
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(AisatFapApp(fap: fap, unlocked: false));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+
+    // The free demo code is on the start screen.
+    expect(find.text('TRY DEMO'), findsOneWidget);
+    expect(find.textContaining(AccessLock.demoCode), findsOneWidget);
+    await tester.enterText(find.byType(EditableText), 'a320-demo');
+    await tester.tap(find.text('ACTIVATE'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+    await tester.tap(find.text('I AGREE & CONTINUE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('DEMO VERSION'), findsOneWidget);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('fap_demo'), isTrue);
+    expect(prefs.getString('fap_license_v2'), isNull);
+    await shot(tester, 'demo_panel');
+
+    Future<void> tapAndSettle(Finder f) async {
+      await tester.tap(f, warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    Future<void> closeDialog() async {
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('ENTER THE LICENSE CODE'), findsNothing);
+    }
+
+    // Allowed light: MAIN ON/OFF.
+    final mainBefore = fap.mainLightsOn;
+    await tapAndSettle(find.text('MAIN\nON/OFF'));
+    expect(fap.mainLightsOn, !mainBefore);
+    expect(find.text('ENTER THE LICENSE CODE'), findsNothing);
+
+    // Any other light is locked: the license window opens, nothing changes.
+    final wdoBefore = fap.windowLights;
+    await tapAndSettle(find.text('WDO'));
+    expect(fap.windowLights, wdoBefore);
+    expect(find.text('ENTER THE LICENSE CODE'), findsOneWidget);
+    await shot(tester, 'demo_license_dialog');
+    await closeDialog();
+
+    // The LIGHTS hard key below the screen is locked too.
+    final mainNow = fap.mainLightsOn;
+    await tapAndSettle(find.text('LIGHTS\nMAIN ON/OFF'));
+    expect(fap.mainLightsOn, mainNow);
+    expect(find.text('ENTER THE LICENSE CODE'), findsOneWidget);
+    await closeDialog();
+
+    // Other pages are locked; the AUDIO page is allowed.
+    await tapAndSettle(find.text('DOORS\nSLIDES'));
+    expect(fap.page, FapPage.lights);
+    expect(find.text('ENTER THE LICENSE CODE'), findsOneWidget);
+    await closeDialog();
+    await tapAndSettle(find.text('AUDIO'));
+    expect(fap.page, FapPage.audio);
+
+    // Allowed audio: boarding music ON/OFF. Announcements are locked.
+    final musicBefore = fap.musicPlaying;
+    await tapAndSettle(find.text('ON/OFF'));
+    expect(fap.musicPlaying, !musicBefore);
+    expect(find.text('ENTER THE LICENSE CODE'), findsNothing);
+    final playingBefore = fap.playingAnnouncement;
+    await tapAndSettle(find.text('DIRECT PLAY'));
+    expect(fap.playingAnnouncement, playingBefore);
+    expect(find.text('ENTER THE LICENSE CODE'), findsOneWidget);
+
+    // The demo code does not work as a license.
+    await tester.enterText(find.byType(EditableText), 'A320-DEMO');
+    await tester.tap(find.text('ACTIVATE'));
+    await tester.pump();
+    expect(find.textContaining('That is the demo code'), findsOneWidget);
+
+    // A real license code unlocks everything at once.
+    await tester.enterText(find.byType(EditableText), 'A320-k7Rm9Qx2');
+    await tester.tap(find.text('ACTIVATE'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ENTER THE LICENSE CODE'), findsNothing);
+    expect(find.text('DEMO VERSION'), findsNothing);
+    expect(prefs.getBool('fap_demo'), isNull);
+    expect(prefs.getString('fap_license_v2'), isNotNull);
+    await tapAndSettle(find.text('DOORS\nSLIDES'));
+    expect(fap.page, FapPage.doors);
+    await teardown(tester);
+  });
+
+  testWidgets('demo is remembered: next start opens the demo panel', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'fap_demo': true});
+    AccessLock.androidIdReader = () async => null;
+    expect(await AccessLock.isUnlocked(), isFalse);
+    expect(await AccessLock.isDemo(), isTrue);
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(
+      AisatFapApp(fap: fap, unlocked: false, demo: true, showDisclaimer: false),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ACTIVATE'), findsNothing);
+    expect(find.text('DEMO VERSION'), findsOneWidget);
+    // The bar's button opens the license window.
+    await tester.tap(find.text('ENTER LICENSE CODE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ENTER THE LICENSE CODE'), findsOneWidget);
+    await teardown(tester);
+  });
+
   testWidgets('alarm scenarios render', (tester) async {
     await boot(tester, const Size(1600, 1000));
 

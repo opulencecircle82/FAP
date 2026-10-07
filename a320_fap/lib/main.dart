@@ -27,8 +27,9 @@ Future<void> main() async {
   final fap = FapProvider();
   await fap.load();
   final unlocked = await AccessLock.isUnlocked();
+  final demo = !unlocked && await AccessLock.isDemo();
 
-  runApp(AisatFapApp(fap: fap, unlocked: unlocked));
+  runApp(AisatFapApp(fap: fap, unlocked: unlocked, demo: demo));
 }
 
 class AisatFapApp extends StatefulWidget {
@@ -36,15 +37,19 @@ class AisatFapApp extends StatefulWidget {
     super.key,
     required this.fap,
     this.unlocked = true,
+    this.demo = false,
     this.showDisclaimer = true,
   });
 
   final FapProvider fap;
 
-  /// False the first time the app runs on a device: the open code is asked.
+  /// False until this device has a license: the start screen is shown.
   final bool unlocked;
 
-  /// The notice is shown at every start, after the open code.
+  /// Demo version chosen earlier (no license yet).
+  final bool demo;
+
+  /// The notice is shown at every start, after the license screen.
   final bool showDisclaimer;
 
   @override
@@ -55,28 +60,41 @@ class _AisatFapAppState extends State<AisatFapApp> {
   // Shared by every route, so a new route (e.g. a web URL change) never
   // shows the lock again once the code has been entered.
   late final _unlocked = ValueNotifier<bool>(widget.unlocked);
+  late final _demo = ValueNotifier<bool>(widget.demo);
   late final _agreed = ValueNotifier<bool>(!widget.showDisclaimer);
 
   @override
   void dispose() {
     _unlocked.dispose();
+    _demo.dispose();
     _agreed.dispose();
     super.dispose();
+  }
+
+  void _licensed() {
+    _unlocked.value = true;
+    _demo.value = false;
   }
 
   @override
   Widget build(BuildContext context) {
     Route<void> home() => MaterialPageRoute<void>(
       builder: (_) => ListenableBuilder(
-        listenable: Listenable.merge([_unlocked, _agreed]),
+        listenable: Listenable.merge([_unlocked, _demo, _agreed]),
         builder: (_, _) {
-          if (!_unlocked.value) {
-            return UnlockScreen(onUnlocked: () => _unlocked.value = true);
+          if (!_unlocked.value && !_demo.value) {
+            return UnlockScreen(
+              onUnlocked: _licensed,
+              onDemo: () => _demo.value = true,
+            );
           }
           if (!_agreed.value) {
             return DisclaimerScreen(onAgree: () => _agreed.value = true);
           }
-          return const FapSimulatorScreen();
+          return FapSimulatorScreen(
+            demo: !_unlocked.value,
+            onLicensed: _licensed,
+          );
         },
       ),
     );

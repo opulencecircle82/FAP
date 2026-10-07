@@ -34,7 +34,34 @@ class AccessLock {
   // (e.g. by Android backup) does not unlock it.
   static const _licenseKey = 'fap_license_v2';
   static const _deviceKey = 'fap_device_id';
+  static const _demoKey = 'fap_demo';
   static const _timeout = Duration(seconds: 15);
+
+  /// Free demo code shown on the start screen. Works offline, is never sent
+  /// to the server and unlocks only the demo functions.
+  static const demoCode = 'A320-DEMO';
+
+  static bool isDemoCode(String code) =>
+      code.trim().toUpperCase() == demoCode;
+
+  /// Demo mode was chosen on this device (and no license is active).
+  static Future<bool> isDemo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_demoKey) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> startDemo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_demoKey, true);
+    } catch (_) {
+      // Demo still runs for this session.
+    }
+  }
 
   /// Replaced in tests.
   static http.Client Function() clientFactory = http.Client.new;
@@ -87,7 +114,9 @@ class AccessLock {
   /// Activates [code] online; on success remembers this device. The code
   /// this device used before also works again after a reinstall.
   static Future<LicenseResult> activate(String code) async =>
-      _call('a320_redeem_license', (device) => {
+      isDemoCode(code)
+      ? LicenseResult.invalid // the demo code is never a license
+      : _call('a320_redeem_license', (device) => {
         'p_code': code.trim(),
         'p_device': device,
       });
@@ -120,6 +149,7 @@ class AccessLock {
       if (body['ok'] == true) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_licenseKey, device);
+        await prefs.remove(_demoKey);
         return LicenseResult.ok;
       }
       return switch (body['reason']) {

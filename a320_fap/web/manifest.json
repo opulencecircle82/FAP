@@ -1,11 +1,11 @@
 {
-    "name": "AISAT A320 FAP Simulator",
-    "short_name": "AISAT FAP",
+    "name": "A320 FAP Simulator",
+    "short_name": "A320 FAP",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0A1520",
     "theme_color": "#00A2E8",
-    "description": "AISAT Airbus A320 Flight Attendant Panel training simulator.",
+    "description": "Airbus A320 Flight Attendant Panel training simulator.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

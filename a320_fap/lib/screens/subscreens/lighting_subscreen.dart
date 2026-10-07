@@ -5,6 +5,7 @@ import '../../models/fap_state.dart';
 import '../../providers/fap_provider.dart';
 import '../../theme/fap_theme.dart';
 import '../../widgets/aircraft_diagram.dart';
+import '../../widgets/demo_gate.dart';
 import '../../widgets/fap_button.dart';
 
 /// CABIN LIGHTING page: BRT / DIM 1 / DIM 2 for the entry areas and for
@@ -147,12 +148,15 @@ class _CabinLightsPanel extends StatelessWidget {
       title: 'MAIN  /  WINDOW  /  AISLE',
       child: Row(
         children: [
-          FapButton(
-            label: 'MAIN\nON/OFF',
-            width: 96,
-            fontSize: 12,
-            active: fap.mainLightsOn,
-            onTap: fap.toggleMainLights,
+          // The one lighting function of the demo version.
+          DemoAllowed(
+            child: FapButton(
+              label: 'MAIN\nON/OFF',
+              width: 96,
+              fontSize: 12,
+              active: fap.mainLightsOn,
+              onTap: fap.toggleMainLights,
+            ),
           ),
           const SizedBox(width: 10),
           FapButton(

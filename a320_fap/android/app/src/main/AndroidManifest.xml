@@ -2,7 +2,7 @@
     <!-- License activation is checked online (Supabase). -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="AISAT A320 FAP"
+        android:label="A320 FAP"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

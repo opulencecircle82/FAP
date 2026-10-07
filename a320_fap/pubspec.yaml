@@ -1,5 +1,5 @@
 name: aisat_fap
-description: "AISAT Airbus A320 Flight Attendant Panel (FAP) training simulator."
+description: "Airbus A320 Flight Attendant Panel (FAP) training simulator."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.4.0+34
+version: 3.5.0+35
 
 environment:
   sdk: ^3.13.2
@@ -73,11 +73,11 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/aisat_logo.png"
+  image_path: "assets/images/app_icon.png"
   adaptive_icon_background: "#0A1520"
   adaptive_icon_foreground: "assets/icon_foreground.png"
   web:
     generate: true
-    image_path: "assets/images/aisat_logo.png"
+    image_path: "assets/images/app_icon.png"
     background_color: "#0A1520"
     theme_color: "#00A2E8"

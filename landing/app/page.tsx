@@ -248,6 +248,13 @@ export default async function Home() {
                 on one device only; after activation the simulator runs offline.
                 Ask your instructor for a code.
               </p>
+              <p className="mt-2 text-sm leading-relaxed text-silver">
+                No code yet? Try the free demo with code{" "}
+                <span className="font-mono text-cyan">A320-DEMO</span> (no
+                internet needed). The demo includes one lighting function
+                (MAIN ON/OFF) and one audio function (boarding music); the
+                other functions ask for a license code.
+              </p>
             </div>
           </div>
         </section>

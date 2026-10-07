@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/fap_state.dart';
 import '../providers/fap_provider.dart';
 import '../theme/fap_theme.dart';
+import 'demo_gate.dart';
 import 'fap_button.dart';
 
 /// Touchscreen page selector along the bottom of the FAP display. Like the
@@ -85,7 +86,7 @@ class BottomTouchNav extends StatelessWidget {
                       child: LayoutBuilder(
                         builder: (context, c) {
                           final tone = toneFor(p);
-                          return FapButton(
+                          final button = FapButton(
                             label: p.tabLabel,
                             width: c.maxWidth,
                             height: 44,
@@ -95,6 +96,10 @@ class BottomTouchNav extends StatelessWidget {
                             flashing: tone == FapButtonTone.red,
                             onTap: () => fap.goTo(p),
                           );
+                          // Demo version: only these two pages.
+                          return p == FapPage.lights || p == FapPage.audio
+                              ? DemoAllowed(child: button)
+                              : button;
                         },
                       ),
                     ),
