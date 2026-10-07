@@ -19,7 +19,43 @@ class _UnlockScreenState extends State<UnlockScreen> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
   String? _error;
-  bool _busy = false;
+  String? _note;
+  // Starts busy: first checks whether this device was activated before
+  // (e.g. the app was uninstalled and installed again).
+  bool _busy = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _note = 'Checking this device...';
+    });
+    final result = await AccessLock.restore();
+    if (!mounted) return;
+    if (result == LicenseResult.ok) {
+      widget.onUnlocked();
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _note = result == LicenseResult.invalid
+          ? null
+          : 'Activated this device before? Connect to the internet, '
+                'then tap CHECK AGAIN.';
+    });
+    _focusField();
+  }
+
+  // The field is disabled while busy; focus it after it is enabled again.
+  void _focusField() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) _focus.requestFocus();
+  });
 
   @override
   void dispose() {
@@ -46,6 +82,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _note = null;
     });
     final result = await AccessLock.activate(_controller.text);
     if (!mounted) return;
@@ -57,7 +94,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
       _busy = false;
       _error = _message(result);
     });
-    _focus.requestFocus();
+    _focusField();
   }
 
   @override
@@ -145,6 +182,19 @@ class _UnlockScreenState extends State<UnlockScreen> {
                           )
                         : const Text('ACTIVATE'),
                   ),
+                  if (_note != null) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      _note!,
+                      textAlign: TextAlign.center,
+                      style: FapText.label,
+                    ),
+                  ],
+                  if (!_busy && _note != null)
+                    TextButton(
+                      onPressed: _restore,
+                      child: const Text('CHECK AGAIN'),
+                    ),
                 ],
               ),
             ),

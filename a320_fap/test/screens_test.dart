@@ -181,7 +181,11 @@ void main() {
 
   testWidgets('license activation, then notice, then panel', (tester) async {
     SharedPreferences.setMockInitialValues({});
+    AccessLock.androidIdReader = () async => null;
     AccessLock.clientFactory = () => MockClient((req) async {
+      if (req.url.path.endsWith('a320_restore_license')) {
+        return http.Response(jsonEncode({'ok': false}), 200); // new device
+      }
       final code = (jsonDecode(req.body) as Map)['p_code'];
       return http.Response(
         jsonEncode(
@@ -196,7 +200,13 @@ void main() {
     tester.view.devicePixelRatio = 1;
     fap = FapProvider(audio: FakeAudio(), random: Random(7));
     await tester.pumpWidget(AisatFapApp(fap: fap, unlocked: false));
+    expect(find.text('Checking this device...'), findsOneWidget);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
     await tester.pump();
+    expect(find.text('Checking this device...'), findsNothing);
+    expect(find.text('ACTIVATE'), findsOneWidget);
     await shot(tester, 'unlock_screen');
     await tester.enterText(find.byType(EditableText), 'A320-M82P');
     await tester.tap(find.text('ACTIVATE'));
@@ -223,6 +233,58 @@ void main() {
     expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('fap_unlocked_v1'), isTrue);
+    await teardown(tester);
+  });
+
+  testWidgets('reinstalled device skips the code', (tester) async {
+    SharedPreferences.setMockInitialValues({}); // app data gone
+    AccessLock.androidIdReader = () async => '9774d56d682e549c';
+    AccessLock.clientFactory = () => MockClient((req) async {
+      expect(req.url.path, endsWith('a320_restore_license'));
+      return http.Response(jsonEncode({'ok': true}), 200);
+    });
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(AisatFapApp(fap: fap, unlocked: false));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ACTIVATE'), findsNothing);
+    expect(find.text('IMPORTANT NOTICE & DISCLAIMER'), findsOneWidget);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('fap_unlocked_v1'), isTrue);
+    await teardown(tester);
+  });
+
+  testWidgets('offline after reinstall offers CHECK AGAIN', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    AccessLock.androidIdReader = () async => null;
+    AccessLock.clientFactory = () =>
+        MockClient((_) async => throw http.ClientException('no network'));
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(AisatFapApp(fap: fap, unlocked: false));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    expect(find.text('CHECK AGAIN'), findsOneWidget);
+    await shot(tester, 'unlock_screen_offline');
+    // Back online: CHECK AGAIN restores the license.
+    AccessLock.clientFactory = () => MockClient(
+      (_) async => http.Response(jsonEncode({'ok': true}), 200),
+    );
+    await tester.tap(find.text('CHECK AGAIN'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('IMPORTANT NOTICE & DISCLAIMER'), findsOneWidget);
     await teardown(tester);
   });
 

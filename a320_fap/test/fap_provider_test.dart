@@ -20,6 +20,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    AccessLock.androidIdReader = () async => null;
     audio = FakeAudio();
     fap = FapProvider(audio: audio);
   });
@@ -561,9 +562,12 @@ void main() {
       List<Map>? seen,
     }) {
       return MockClient((req) async {
-        expect(req.url.path, '/rest/v1/rpc/a320_redeem_license');
+        expect(req.url.path, startsWith('/rest/v1/rpc/a320_'));
         expect(req.headers['apikey'], startsWith('sb_publishable_'));
-        final body = jsonDecode(req.body) as Map;
+        final body = {
+          ...jsonDecode(req.body) as Map,
+          '_fn': req.url.pathSegments.last,
+        };
         seen?.add(body);
         return http.Response(jsonEncode(reply(body)), 200);
       });
@@ -585,6 +589,65 @@ void main() {
       expect(seen.last['p_code'], 'A320-k7Rm9Qx2');
       expect(seen.first['p_device'], seen.last['p_device']); // same device
       expect((seen.first['p_device'] as String).length, 32);
+    });
+
+    test('reinstall on the same device restores without a code', () async {
+      // Fake server with the real rules: a code belongs to one device.
+      final owner = <String, String>{};
+      Map<String, dynamic> server(Map b) {
+        final device = b['p_device'] as String;
+        if (b['_fn'] == 'a320_restore_license') {
+          return {'ok': owner.containsValue(device)};
+        }
+        if (b['p_code'] != 'A320-k7Rm9Qx2') {
+          return {'ok': false, 'reason': 'INVALID'};
+        }
+        final used = owner['A320-k7Rm9Qx2'];
+        if (used != null && used != device) {
+          return {'ok': false, 'reason': 'ALREADY_USED'};
+        }
+        owner['A320-k7Rm9Qx2'] = device;
+        return {'ok': true};
+      }
+
+      final seen = <Map>[];
+      AccessLock.clientFactory = () => fakeServer(server, seen: seen);
+      AccessLock.androidIdReader = () async => '9774d56d682e549c';
+
+      // First install: nothing to restore, so a code is needed.
+      expect(await AccessLock.restore(), LicenseResult.invalid);
+      expect(await AccessLock.isUnlocked(), isFalse);
+      expect(await AccessLock.activate('A320-k7Rm9Qx2'), LicenseResult.ok);
+      final device = seen.last['p_device'] as String;
+      expect(device.length, 64); // a hash; the raw id is never sent
+      expect(device, isNot(contains('9774d56d682e549c')));
+
+      // Uninstall + install: app data is gone, ANDROID_ID is the same.
+      SharedPreferences.setMockInitialValues({});
+      expect(await AccessLock.isUnlocked(), isFalse);
+      expect(await AccessLock.restore(), LicenseResult.ok);
+      expect(await AccessLock.isUnlocked(), isTrue);
+      expect(seen.last['p_device'], device);
+
+      // Typing the same code again on the same device also works.
+      SharedPreferences.setMockInitialValues({});
+      expect(await AccessLock.activate('A320-k7Rm9Qx2'), LicenseResult.ok);
+
+      // Another device cannot restore or reuse the code.
+      SharedPreferences.setMockInitialValues({});
+      AccessLock.androidIdReader = () async => 'ffff000011112222';
+      expect(await AccessLock.restore(), LicenseResult.invalid);
+      expect(
+        await AccessLock.activate('A320-k7Rm9Qx2'),
+        LicenseResult.alreadyUsed,
+      );
+      expect(await AccessLock.isUnlocked(), isFalse);
+
+      // Offline after a reinstall: stays locked until online.
+      AccessLock.clientFactory = () =>
+          MockClient((_) async => throw http.ClientException('no network'));
+      expect(await AccessLock.restore(), LicenseResult.offline);
+      expect(await AccessLock.isUnlocked(), isFalse);
     });
 
     test('server reasons map to messages', () async {
