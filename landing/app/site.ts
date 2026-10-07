@@ -1,8 +1,8 @@
 export const BASE_PATH = "/FAP";
 
 export const site = {
-  version: "3.1",
-  apkName: "AISAT_FAP_v3.1.apk",
+  version: "3.2",
+  apkName: "AISAT_FAP_v3.2.apk",
   repoUrl: "https://github.com/opulencecircle82/FAP",
   pageUrl: "https://opulencecircle82.github.io/FAP/",
   get apkUrl() {

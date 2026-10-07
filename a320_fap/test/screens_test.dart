@@ -53,7 +53,7 @@ void main() {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     fap = FapProvider(audio: FakeAudio(), random: Random(7));
-    await tester.pumpWidget(AisatFapApp(fap: fap));
+    await tester.pumpWidget(AisatFapApp(fap: fap, showDisclaimer: false));
     await tester.pump(const Duration(milliseconds: 300));
   }
 
@@ -159,6 +159,24 @@ void main() {
 
   final openCode = Platform.environment['FAP_OPEN_CODE'] ?? '';
 
+  testWidgets('notice shows at every start on an unlocked device', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(AisatFapApp(fap: fap));
+    await tester.pump();
+    expect(find.text('IMPORTANT NOTICE & DISCLAIMER'), findsOneWidget);
+    expect(find.textContaining('Overdrive Interactive'), findsWidgets);
+    await tester.tap(find.text('I AGREE & CONTINUE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsOneWidget);
+    await teardown(tester);
+  });
+
   testWidgets('open code is asked once', skip: openCode.isEmpty, (
     tester,
   ) async {
@@ -178,6 +196,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('UNLOCK'), findsNothing);
+    // The notice comes next, before the panel.
+    expect(find.text('IMPORTANT NOTICE & DISCLAIMER'), findsOneWidget);
+    expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsNothing);
+    await shot(tester, 'disclaimer_screen');
+    await tester.tap(find.text('I AGREE & CONTINUE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('CIDS  FLIGHT ATTENDANT PANEL'), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('fap_unlocked_v1'), isTrue);

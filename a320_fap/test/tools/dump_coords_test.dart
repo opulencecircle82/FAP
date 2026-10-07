@@ -61,7 +61,22 @@ void main() {
     };
 
     final out = <String, dynamic>{};
-    for (final p in FapPage.values) {
+    // Every page as first seen, then the protected pages once unlocked
+    // (stored as '<page>_open').
+    final shots = <(FapPage, String)>[
+      for (final p in FapPage.values) (p, p.name),
+      for (final p in FapPage.values.where((p) => p.protected))
+        (p, '${p.name}_open'),
+      (FapPage.cabinProg, 'cabinProg_saved'),
+    ];
+    for (final (p, key) in shots) {
+      if (key.endsWith('_open')) {
+        fap.enterAccessCode(p, p == FapPage.swLoad ? '813' : '318');
+      }
+      if (key == 'cabinProg_saved') {
+        fap.moveBoundary(1);
+        fap.saveProgramming();
+      }
       fap.goTo(p);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -108,6 +123,9 @@ void main() {
         '_ResetHint',
         '_EvacCmdKey',
         '_HardKey',
+        'AccessKeypad',
+        '_SavedDialog',
+        '_SeatMap',
       };
       final regions = <Map<String, dynamic>>[];
       for (final e
@@ -135,7 +153,7 @@ void main() {
           ...rect(box.localToGlobal(Offset.zero) & box.size),
         });
       }
-      out[p.name] = {
+      out[key] = {
         'texts': texts,
         'icons': icons,
         'sliders': sliders,
@@ -153,6 +171,11 @@ void main() {
           'stop': Icons.stop.codePoint,
           'arrow_forward': Icons.arrow_forward.codePoint,
           'arrow_back': Icons.arrow_back.codePoint,
+          'arrow_left': Icons.arrow_left.codePoint,
+          'arrow_right': Icons.arrow_right.codePoint,
+          'up': Icons.keyboard_arrow_up.codePoint,
+          'down': Icons.keyboard_arrow_down.codePoint,
+          'close': Icons.close.codePoint,
         },
         'pages': out,
       }),

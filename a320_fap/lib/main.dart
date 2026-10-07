@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'config.dart';
 import 'providers/fap_provider.dart';
+import 'screens/disclaimer_screen.dart';
 import 'screens/fap_simulator_screen.dart';
 import 'screens/unlock_screen.dart';
 import 'services/access_lock.dart';
@@ -31,12 +32,20 @@ Future<void> main() async {
 }
 
 class AisatFapApp extends StatefulWidget {
-  const AisatFapApp({super.key, required this.fap, this.unlocked = true});
+  const AisatFapApp({
+    super.key,
+    required this.fap,
+    this.unlocked = true,
+    this.showDisclaimer = true,
+  });
 
   final FapProvider fap;
 
   /// False the first time the app runs on a device: the open code is asked.
   final bool unlocked;
+
+  /// The notice is shown at every start, after the open code.
+  final bool showDisclaimer;
 
   @override
   State<AisatFapApp> createState() => _AisatFapAppState();
@@ -46,21 +55,29 @@ class _AisatFapAppState extends State<AisatFapApp> {
   // Shared by every route, so a new route (e.g. a web URL change) never
   // shows the lock again once the code has been entered.
   late final _unlocked = ValueNotifier<bool>(widget.unlocked);
+  late final _agreed = ValueNotifier<bool>(!widget.showDisclaimer);
 
   @override
   void dispose() {
     _unlocked.dispose();
+    _agreed.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     Route<void> home() => MaterialPageRoute<void>(
-      builder: (_) => ValueListenableBuilder<bool>(
-        valueListenable: _unlocked,
-        builder: (_, unlocked, _) => unlocked
-            ? const FapSimulatorScreen()
-            : UnlockScreen(onUnlocked: () => _unlocked.value = true),
+      builder: (_) => ListenableBuilder(
+        listenable: Listenable.merge([_unlocked, _agreed]),
+        builder: (_, _) {
+          if (!_unlocked.value) {
+            return UnlockScreen(onUnlocked: () => _unlocked.value = true);
+          }
+          if (!_agreed.value) {
+            return DisclaimerScreen(onAgree: () => _agreed.value = true);
+          }
+          return const FapSimulatorScreen();
+        },
       ),
     );
     return MultiProvider(
