@@ -189,9 +189,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
 
 function Dashboard({ token, onExpired }: { token: string; onExpired: () => void }) {
   const [codes, setCodes] = useState<Code[] | null>(null);
-  const [filter, setFilter] = useState<"all" | "unused" | "used">("unused");
   const [query, setQuery] = useState("");
-  const [count, setCount] = useState(5);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -238,29 +236,40 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
     }
   };
 
-  const stats = useMemo(() => {
-    const all = codes ?? [];
-    const used = all.filter((c) => c.is_used).length;
-    return { total: all.length, used, unused: all.length - used };
-  }, [codes]);
+  const unused = useMemo(() => (codes ?? []).filter((c) => !c.is_used), [codes]);
+  const used = useMemo(() => (codes ?? []).filter((c) => c.is_used), [codes]);
+  const usedShown = useMemo(
+    () => used.filter((c) => c.code.includes(query.trim())),
+    [used, query],
+  );
 
-  const shown = useMemo(
-    () =>
-      (codes ?? []).filter(
-        (c) =>
-          (filter === "all" || (filter === "used") === c.is_used) &&
-          c.code.toLowerCase().includes(query.trim().toLowerCase()),
-      ),
-    [codes, filter, query],
+  const copyBtn = (code: string) => (
+    <button
+      onClick={() =>
+        navigator.clipboard
+          ?.writeText(code)
+          .then(() => setMessage({ text: `${code} copied.`, ok: true }))
+      }
+      className="rounded-md border border-line px-2 py-1 text-xs font-bold text-silver hover:text-white"
+    >
+      Copy
+    </button>
+  );
+  const emptyRow = (text: string) => (
+    <tr>
+      <td colSpan={4} className="py-6 text-center text-silver">
+        {text}
+      </td>
+    </tr>
   );
 
   return (
     <div className="mt-4 space-y-6">
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          ["UNUSED", stats.unused, "text-fap-green"],
-          ["USED", stats.used, "text-fap-amber"],
-          ["TOTAL", stats.total, "text-white"],
+          ["UNUSED", unused.length, "text-fap-green"],
+          ["USED", used.length, "text-fap-amber"],
+          ["TOTAL", (codes ?? []).length, "text-white"],
         ].map(([label, value, color]) => (
           <div key={label as string} className="rounded-2xl border border-line bg-panel/80 p-5">
             <div className="text-xs font-bold tracking-widest text-silver">{label}</div>
@@ -270,10 +279,14 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
           </div>
         ))}
       </div>
-      <p className="text-sm text-silver">
-        The system keeps at least 10 unused codes: when 7 or fewer are left
-        after a code is used, new codes are created automatically.
-      </p>
+      <ul className="list-disc space-y-1 pl-5 text-sm text-silver">
+        <li>There are always exactly 10 unused codes. When one is used, a new one is created right away.</li>
+        <li>A used code can never be used again, on any device.</li>
+        <li>
+          Codes are case-sensitive (capital letters, small letters and numbers), so give them
+          exactly as shown. Activation needs an internet connection.
+        </li>
+      </ul>
 
       {message && (
         <p
@@ -287,107 +300,90 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
         </p>
       )}
 
-      <section className="rounded-2xl border border-line bg-panel/80 p-5">
+      <section className="rounded-2xl border border-fap-green/40 bg-panel/80 p-5">
+        <h2 className="text-lg font-extrabold">
+          Unused codes <span className="text-fap-green">({codes ? unused.length : "…"})</span>
+        </h2>
+        <p className="mt-1 text-sm text-silver">Ready to give to students.</p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[480px] text-left text-sm">
+            <thead className="text-xs tracking-wider text-silver">
+              <tr>
+                <th className="py-2">#</th>
+                <th>CODE</th>
+                <th>CREATED</th>
+                <th className="text-right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codes === null && emptyRow("Loading…")}
+              {codes !== null && unused.length === 0 && emptyRow("No unused codes.")}
+              {unused.map((c, i) => (
+                <tr key={c.id} className="border-t border-line">
+                  <td className="py-3 font-mono text-xs text-silver">{i + 1}</td>
+                  <td className="font-mono text-base font-bold tracking-wide">{c.code}</td>
+                  <td className="text-silver">{fmt(c.created_at)}</td>
+                  <td className="space-x-2 text-right whitespace-nowrap">
+                    {copyBtn(c.code)}
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        if (!confirm(`Replace ${c.code}? It will stop working and a new code will be created.`))
+                          return;
+                        act(
+                          () => rpc("a320_admin_delete_code", { p_token: token, p_id: c.id }),
+                          `${c.code} was replaced with a new code.`,
+                        );
+                      }}
+                      className="rounded-md border border-fap-red/50 px-2 py-1 text-xs font-bold text-fap-red disabled:opacity-50"
+                    >
+                      Replace
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-silver">Use Replace only if an unused code was shared by mistake.</p>
+      </section>
+
+      <section className="rounded-2xl border border-fap-amber/40 bg-panel/80 p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="mr-auto text-lg font-extrabold">License codes</h2>
+          <h2 className="mr-auto text-lg font-extrabold">
+            Used codes <span className="text-fap-amber">({codes ? used.length : "…"})</span>
+          </h2>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search code"
-            className="w-40 rounded-lg border border-line bg-ink px-3 py-2 text-sm outline-none focus:border-cyan"
+            className="w-44 rounded-lg border border-line bg-ink px-3 py-2 text-sm outline-none focus:border-cyan"
           />
-          {(["unused", "used", "all"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-lg px-3 py-2 text-sm font-bold capitalize ${
-                filter === f ? "bg-cyan text-black" : "border border-line text-silver"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
         </div>
-
+        <p className="mt-1 text-sm text-silver">Already activated. These can never be used again.</p>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="text-xs tracking-wider text-silver">
               <tr>
                 <th className="py-2">CODE</th>
-                <th>STATUS</th>
                 <th>USED AT</th>
                 <th>DEVICE</th>
                 <th className="text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {codes === null && (
-                <tr>
-                  <td colSpan={5} className="py-6 text-center text-silver">Loading…</td>
-                </tr>
-              )}
-              {codes !== null && shown.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-6 text-center text-silver">No codes.</td>
-                </tr>
-              )}
-              {shown.map((c) => (
+              {codes === null && emptyRow("Loading…")}
+              {codes !== null &&
+                usedShown.length === 0 &&
+                emptyRow(used.length === 0 ? "No code has been used yet." : "No match.")}
+              {usedShown.map((c) => (
                 <tr key={c.id} className="border-t border-line">
-                  <td className="py-3 font-mono text-base font-bold">{c.code}</td>
-                  <td>
-                    <span
-                      className={`rounded px-2 py-0.5 font-mono text-xs font-bold ${
-                        c.is_used ? "bg-fap-amber/20 text-fap-amber" : "bg-fap-green/15 text-fap-green"
-                      }`}
-                    >
-                      {c.is_used ? "USED" : "UNUSED"}
-                    </span>
-                  </td>
+                  <td className="py-3 font-mono text-base font-bold tracking-wide text-silver">{c.code}</td>
                   <td className="text-silver">{fmt(c.used_at)}</td>
-                  <td className="font-mono text-xs text-silver">
+                  <td className="font-mono text-xs text-silver" title={c.device_id ?? ""}>
                     {c.device_id ? `${c.device_id.slice(0, 8)}…` : "—"}
                   </td>
-                  <td className="space-x-2 text-right whitespace-nowrap">
-                    <button
-                      onClick={() =>
-                        navigator.clipboard
-                          ?.writeText(c.code)
-                          .then(() => setMessage({ text: `${c.code} copied.`, ok: true }))
-                      }
-                      className="rounded-md border border-line px-2 py-1 text-xs font-bold text-silver hover:text-white"
-                    >
-                      Copy
-                    </button>
-                    {c.is_used ? (
-                      <button
-                        disabled={busy}
-                        onClick={() => {
-                          if (!confirm(`Reset ${c.code}? It can then be activated on another device.`)) return;
-                          act(
-                            () => rpc("a320_admin_reset_code", { p_token: token, p_id: c.id }),
-                            `${c.code} is unused again.`,
-                          );
-                        }}
-                        className="rounded-md border border-fap-amber/50 px-2 py-1 text-xs font-bold text-fap-amber"
-                      >
-                        Reset
-                      </button>
-                    ) : (
-                      <button
-                        disabled={busy}
-                        onClick={() => {
-                          if (!confirm(`Delete ${c.code}?`)) return;
-                          act(
-                            () => rpc("a320_admin_delete_code", { p_token: token, p_id: c.id }),
-                            `${c.code} deleted.`,
-                          );
-                        }}
-                        className="rounded-md border border-fap-red/50 px-2 py-1 text-xs font-bold text-fap-red"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
+                  <td className="text-right whitespace-nowrap">{copyBtn(c.code)}</td>
                 </tr>
               ))}
             </tbody>
@@ -395,33 +391,7 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
         </div>
       </section>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <section className="rounded-2xl border border-line bg-panel/80 p-5">
-          <h2 className="text-lg font-extrabold">Generate codes</h2>
-          <p className="mt-1 text-sm text-silver">Creates new unused codes (A320-XXXX), up to 100 at a time.</p>
-          <div className="mt-4 flex gap-3">
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={count}
-              onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
-              className="w-24 rounded-lg border border-line bg-ink px-3 py-2 outline-none focus:border-cyan"
-            />
-            <button
-              disabled={busy}
-              onClick={() =>
-                act(
-                  () => rpc("a320_admin_add_codes", { p_token: token, p_count: count }),
-                  `${count} code(s) created.`,
-                )
-              }
-              className="rounded-lg bg-cyan px-5 py-2 font-extrabold text-black disabled:opacity-50"
-            >
-              Generate
-            </button>
-          </div>
-        </section>
+      <div className="max-w-xl">
         <Credentials token={token} onError={fail} onDone={(t) => setMessage({ text: t, ok: true })} />
       </div>
     </div>

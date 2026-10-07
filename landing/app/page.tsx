@@ -242,7 +242,8 @@ export default async function Home() {
               <h3 className="text-lg font-extrabold">License code required</h3>
               <p className="mt-1 text-sm leading-relaxed text-silver">
                 The first time the app opens, enter your license code
-                (for example <span className="font-mono text-cyan">A320-XXXX</span>).
+                (for example <span className="font-mono text-cyan">A320-k7Rm9Qx2</span>),
+                exactly as given: capital and small letters matter.
                 Activation needs an internet connection once. Each code works
                 on one device only; after activation the simulator runs offline.
                 Ask your instructor for a code.

@@ -185,7 +185,7 @@ void main() {
       final code = (jsonDecode(req.body) as Map)['p_code'];
       return http.Response(
         jsonEncode(
-          code == 'A320-K92A'
+          code == 'A320-k7Rm9Qx2'
               ? {'ok': true}
               : {'ok': false, 'reason': 'ALREADY_USED'},
         ),
@@ -206,7 +206,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('already been used'), findsOneWidget);
     await shot(tester, 'unlock_screen_used');
-    await tester.enterText(find.byType(EditableText), 'A320-K92A');
+    await tester.enterText(find.byType(EditableText), 'A320-k7Rm9Qx2');
     await tester.tap(find.text('ACTIVATE'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 200)),

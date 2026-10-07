@@ -101,7 +101,9 @@ class _UnlockScreenState extends State<UnlockScreen> {
                     focusNode: _focus,
                     autofocus: true,
                     enabled: !_busy,
-                    textCapitalization: TextCapitalization.characters,
+                    // Codes are case-sensitive: keep exactly what is typed.
+                    autocorrect: false,
+                    enableSuggestions: false,
                     onSubmitted: (_) => _submit(),
                     onChanged: (_) {
                       if (_error != null) setState(() => _error = null);
@@ -109,7 +111,12 @@ class _UnlockScreenState extends State<UnlockScreen> {
                     style: FapText.monoStyle(size: 18, weight: FontWeight.w700),
                     decoration: InputDecoration(
                       labelText: 'LICENSE CODE',
-                      hintText: 'A320-XXXX',
+                      hintText: 'A320-xxxxxxxx',
+                      hintStyle: FapText.monoStyle(
+                        size: 18,
+                        color: Colors.white24,
+                      ),
+                      helperText: 'Case-sensitive: type it exactly as given.',
                       errorText: _error,
                       errorMaxLines: 2,
                       filled: true,

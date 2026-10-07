@@ -572,7 +572,7 @@ void main() {
     test('valid code activates and is remembered; device id is sent', () async {
       final seen = <Map>[];
       AccessLock.clientFactory = () => fakeServer(
-        (b) => b['p_code'] == 'A320-K92A'
+        (b) => b['p_code'] == 'A320-k7Rm9Qx2'
             ? {'ok': true}
             : {'ok': false, 'reason': 'INVALID'},
         seen: seen,
@@ -580,9 +580,9 @@ void main() {
       expect(await AccessLock.isUnlocked(), isFalse);
       expect(await AccessLock.activate('A320-XXXX'), LicenseResult.invalid);
       expect(await AccessLock.isUnlocked(), isFalse);
-      expect(await AccessLock.activate(' A320-K92A '), LicenseResult.ok);
+      expect(await AccessLock.activate(' A320-k7Rm9Qx2 '), LicenseResult.ok);
       expect(await AccessLock.isUnlocked(), isTrue);
-      expect(seen.last['p_code'], 'A320-K92A');
+      expect(seen.last['p_code'], 'A320-k7Rm9Qx2');
       expect(seen.first['p_device'], seen.last['p_device']); // same device
       expect((seen.first['p_device'] as String).length, 32);
     });
@@ -595,7 +595,7 @@ void main() {
       ]) {
         AccessLock.clientFactory = () =>
             fakeServer((_) => {'ok': false, 'reason': reason});
-        expect(await AccessLock.activate('A320-K92A'), result);
+        expect(await AccessLock.activate('A320-k7Rm9Qx2'), result);
       }
       expect(await AccessLock.isUnlocked(), isFalse);
     });
@@ -603,10 +603,10 @@ void main() {
     test('offline or server error never unlocks', () async {
       AccessLock.clientFactory = () =>
           MockClient((_) async => throw http.ClientException('no network'));
-      expect(await AccessLock.activate('A320-K92A'), LicenseResult.offline);
+      expect(await AccessLock.activate('A320-k7Rm9Qx2'), LicenseResult.offline);
       AccessLock.clientFactory = () =>
           MockClient((_) async => http.Response('oops', 500));
-      expect(await AccessLock.activate('A320-K92A'), LicenseResult.error);
+      expect(await AccessLock.activate('A320-k7Rm9Qx2'), LicenseResult.error);
       expect(await AccessLock.isUnlocked(), isFalse);
     });
   });

@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum LicenseResult { ok, invalid, alreadyUsed, tooManyAttempts, offline, error }
 
 /// One-time license activation. The first time the app runs on a device
-/// it asks for a license code (e.g. A320-K92A); the code is checked online
+/// it asks for a license code (e.g. A320-k7Rm9Qx2, case-sensitive); the code is checked online
 /// against Supabase and can be used on one device only. Once activated the
 /// device is remembered and the app works offline.
 class AccessLock {
