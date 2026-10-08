@@ -102,12 +102,9 @@ export default async function Home() {
           <a href="#download" className="hover:text-white">Download</a>
           <a href="#notice" className="hover:text-white">Notice</a>
         </nav>
-        <a
-          href={site.repoUrl}
-          className="ml-auto rounded-full border border-cyan/50 px-3 py-1 font-mono text-xs font-bold text-cyan hover:bg-cyan/10 md:ml-6"
-        >
+        <span className="ml-auto rounded-full border border-cyan/50 px-3 py-1 font-mono text-xs font-bold text-cyan md:ml-6">
           v{site.version}
-        </a>
+        </span>
       </header>
 
       <main>
@@ -318,12 +315,6 @@ export default async function Home() {
               </ol>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <DownloadButton />
-                <a
-                  href={site.releasesUrl}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-bold text-silver hover:text-white"
-                >
-                  All releases on GitHub →
-                </a>
               </div>
             </div>
           </div>

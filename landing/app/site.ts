@@ -16,9 +16,6 @@ export const site = {
   get apkUrl() {
     return `${this.repoUrl}/releases/latest/download/${this.apkName}`;
   },
-  get releasesUrl() {
-    return `${this.repoUrl}/releases`;
-  },
   /** YouTube tutorial (school-free version). */
   tutorialId: "KAeq-nrS088",
   get tutorialUrl() {
