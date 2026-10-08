@@ -59,15 +59,25 @@ class FapSimulatorScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF070D13),
       body: SafeArea(
-        child: _panel(
-          askLicense,
-          // Licensed only: the demo has its own ENTER LICENSE CODE button.
-          demo
-              ? null
-              : () => showSettingsDialog(
-                  context,
-                  onDeactivated: () => onDeactivated?.call(),
-                ),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final panel = _panel(
+              askLicense,
+              // Licensed only: the demo has its own ENTER LICENSE CODE button.
+              demo
+                  ? null
+                  : () => showSettingsDialog(
+                      context,
+                      onDeactivated: () => onDeactivated?.call(),
+                    ),
+            );
+            // The FAP is always horizontal. If the system still shows the
+            // app upright (some Android tablets ignore the landscape lock),
+            // turn the panel sideways instead of shrinking it.
+            return c.maxHeight > c.maxWidth
+                ? RotatedBox(quarterTurns: 1, child: panel)
+                : panel;
+          },
         ),
       ),
     );

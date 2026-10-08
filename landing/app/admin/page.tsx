@@ -245,11 +245,16 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
     () => (codes ?? []).filter((c) => !c.is_used && !c.released_at),
     [codes],
   );
-  const released = useMemo(
-    () => (codes ?? []).filter((c) => !c.is_used && !!c.released_at),
+  // Transferred: released at least once (waiting for the owner's new
+  // device, or already active on it). Shown apart from first-time codes.
+  const transferred = useMemo(
+    () => (codes ?? []).filter((c) => (c.transfer_count ?? 0) > 0 || !!c.released_at),
     [codes],
   );
-  const used = useMemo(() => (codes ?? []).filter((c) => c.is_used), [codes]);
+  const used = useMemo(
+    () => (codes ?? []).filter((c) => c.is_used && !((c.transfer_count ?? 0) > 0)),
+    [codes],
+  );
   const usedShown = useMemo(
     () => used.filter((c) => c.code.includes(query.trim())),
     [used, query],
@@ -267,9 +272,32 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
       Copy
     </button>
   );
-  const emptyRow = (text: string) => (
+  const releaseBtn = (c: Code) => (
+    <button
+      disabled={busy}
+      onClick={() => {
+        if (
+          !confirm(
+            `Release ${c.code}? It will be unbound from its device and can be activated on a new device. Give it back only to the same owner.`,
+          )
+        )
+          return;
+        act(async () => {
+          const r = await rpc<{ ok: boolean }>("a320_admin_release_code", {
+            p_token: token,
+            p_id: c.id,
+          });
+          if (!r?.ok) throw new RpcError("NOT_USED");
+        }, `${c.code} was released. The owner can activate it on a new device.`);
+      }}
+      className="rounded-md border border-cyan/50 px-2 py-1 text-xs font-bold text-cyan disabled:opacity-50"
+    >
+      Release
+    </button>
+  );
+  const emptyRow = (text: string, cols = 4) => (
     <tr>
-      <td colSpan={4} className="py-6 text-center text-silver">
+      <td colSpan={cols} className="py-6 text-center text-silver">
         {text}
       </td>
     </tr>
@@ -281,7 +309,7 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
         {[
           ["UNUSED", unused.length, "text-fap-green"],
           ["USED", used.length, "text-fap-amber"],
-          ["RELEASED", released.length, "text-cyan"],
+          ["TRANSFERRED", transferred.length, "text-cyan"],
           ["TOTAL", (codes ?? []).length, "text-white"],
         ].map(([label, value, color]) => (
           <div key={label as string} className="rounded-2xl border border-line bg-panel/80 p-5">
@@ -296,7 +324,7 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
         <li>There are always exactly 10 unused codes. When one is used, a new one is created right away.</li>
         <li>A code works on one device at a time. A used code cannot be given to someone else.</li>
         <li>
-          Moving to a new tablet: the student opens Settings (gear) &gt; Deactivate &amp; Transfer,
+          Moving to a new tablet: the student opens ⚙ SETTINGS &gt; Deactivate &amp; Transfer,
           then enters the same code on the new tablet. If the old tablet is broken, press
           Release on the code below.
         </li>
@@ -379,7 +407,7 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
           />
         </div>
         <p className="mt-1 text-sm text-silver">
-          Activated on a device. Release frees a code for its owner&apos;s new device (use it when
+          Activated on their first device. Release frees a code for its owner&apos;s new device (use it when
           the old device is broken or lost); the old device locks itself the next time it is
           online.
         </p>
@@ -407,27 +435,7 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
                   </td>
                   <td className="space-x-2 text-right whitespace-nowrap">
                     {copyBtn(c.code)}
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        if (
-                          !confirm(
-                            `Release ${c.code}? It will be unbound from its device and can be activated on a new device. Give it back only to the same owner.`,
-                          )
-                        )
-                          return;
-                        act(async () => {
-                          const r = await rpc<{ ok: boolean }>("a320_admin_release_code", {
-                            p_token: token,
-                            p_id: c.id,
-                          });
-                          if (!r?.ok) throw new RpcError("NOT_USED");
-                        }, `${c.code} was released. The owner can activate it on a new device.`);
-                      }}
-                      className="rounded-md border border-cyan/50 px-2 py-1 text-xs font-bold text-cyan disabled:opacity-50"
-                    >
-                      Release
-                    </button>
+                    {releaseBtn(c)}
                   </td>
                 </tr>
               ))}
@@ -438,31 +446,49 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
 
       <section className="rounded-2xl border border-cyan/40 bg-panel/80 p-5">
         <h2 className="text-lg font-extrabold">
-          Released codes <span className="text-cyan">({codes ? released.length : "…"})</span>
+          Transferred codes <span className="text-cyan">({codes ? transferred.length : "…"})</span>
         </h2>
         <p className="mt-1 text-sm text-silver">
-          Waiting to be activated on the owner&apos;s new device. They are not part of the 10
-          unused codes; do not give them to other students.
+          Codes moved to another device (Deactivate &amp; Transfer in the app, or Release here).
+          A code <b className="text-cyan">waiting for new device</b> belongs to its owner: it is not
+          one of the 10 unused codes, so do not give it to another student.
         </p>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[480px] text-left text-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="text-xs tracking-wider text-silver">
               <tr>
                 <th className="py-2">CODE</th>
-                <th>RELEASED AT</th>
+                <th>STATUS</th>
+                <th>SINCE</th>
+                <th>DEVICE</th>
                 <th>TRANSFERS</th>
                 <th className="text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {codes === null && emptyRow("Loading…")}
-              {codes !== null && released.length === 0 && emptyRow("No released codes.")}
-              {released.map((c) => (
+              {codes === null && emptyRow("Loading…", 6)}
+              {codes !== null && transferred.length === 0 && emptyRow("No code has been transferred yet.", 6)}
+              {transferred.map((c) => (
                 <tr key={c.id} className="border-t border-line">
                   <td className="py-3 font-mono text-base font-bold tracking-wide">{c.code}</td>
-                  <td className="text-silver">{fmt(c.released_at ?? null)}</td>
+                  <td>
+                    <span
+                      className={`rounded px-2 py-0.5 font-mono text-xs font-bold ${
+                        c.is_used ? "bg-fap-green/15 text-fap-green" : "bg-cyan/15 text-cyan"
+                      }`}
+                    >
+                      {c.is_used ? "ACTIVE ON NEW DEVICE" : "WAITING FOR NEW DEVICE"}
+                    </span>
+                  </td>
+                  <td className="text-silver">{fmt(c.is_used ? c.used_at : (c.released_at ?? null))}</td>
+                  <td className="font-mono text-xs text-silver" title={c.device_id ?? ""}>
+                    {c.device_id ? `${c.device_id.slice(0, 8)}…` : "—"}
+                  </td>
                   <td className="font-mono text-silver">{c.transfer_count ?? 0}</td>
-                  <td className="text-right whitespace-nowrap">{copyBtn(c.code)}</td>
+                  <td className="space-x-2 text-right whitespace-nowrap">
+                    {copyBtn(c.code)}
+                    {c.is_used && releaseBtn(c)}
+                  </td>
                 </tr>
               ))}
             </tbody>

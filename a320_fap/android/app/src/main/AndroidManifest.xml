@@ -5,6 +5,10 @@
         android:label="A320 FAP"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Keep the landscape lock on large screens (Android 16 tablets). -->
+        <property
+            android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
+            android:value="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -568,6 +568,22 @@ void main() {
     await teardown(tester);
   });
 
+  testWidgets('upright screen: the panel is turned sideways, never vertical', (
+    tester,
+  ) async {
+    await boot(tester, const Size(800, 1280));
+    final rotated = tester.widget<RotatedBox>(
+      find.ancestor(
+        of: find.text('CIDS  FLIGHT ATTENDANT PANEL'),
+        matching: find.byType(RotatedBox),
+      ),
+    );
+    expect(rotated.quarterTurns, 1);
+    expect(tester.takeException(), isNull);
+    await shot(tester, 'portrait_rotated');
+    await teardown(tester);
+  });
+
   testWidgets('alarm scenarios render', (tester) async {
     await boot(tester, const Size(1600, 1000));
 
