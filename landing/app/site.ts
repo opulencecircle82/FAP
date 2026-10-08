@@ -16,6 +16,8 @@ export const site = {
   get apkUrl() {
     return `${this.repoUrl}/releases/latest/download/${this.apkName}`;
   },
+  /** User manual PDF (built from /manual, copied to landing/public). */
+  manualPath: `${BASE_PATH}/A320_FAP_User_Manual.pdf`,
   /** YouTube tutorial (school-free version). */
   tutorialId: "KAeq-nrS088",
   get tutorialUrl() {

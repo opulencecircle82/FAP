@@ -21,6 +21,9 @@ const features = [
   },
 ];
 
+const manualIcon =
+  "M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2V5zm0 16a2 2 0 0 1 2-2h12v2H6M8 7h6M8 11h6";
+
 const pages = [
   ["STATUS", "Cabin overview of every system at a glance."],
   ["AUDIO", "4 boarding music channels, PRAM with MEMO / PLAY ALL, chimes."],
@@ -98,6 +101,7 @@ export default async function Home() {
         <nav className="ml-auto hidden items-center gap-7 text-sm text-silver md:flex">
           <a href="#features" className="hover:text-white">Features</a>
           <a href="#tutorial" className="hover:text-white">Tutorial</a>
+          <a href={site.manualPath} className="hover:text-white">Manual</a>
           <a href="#panel" className="hover:text-white">The Panel</a>
           <a href="#download" className="hover:text-white">Download</a>
           <a href="#notice" className="hover:text-white">Notice</a>
@@ -135,6 +139,13 @@ export default async function Home() {
                 WATCH TUTORIAL
               </a>
             </div>
+            <a
+              href={site.manualPath}
+              className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-cyan hover:underline"
+            >
+              <Icon d={manualIcon} className="size-4" />
+              User Manual (PDF) — every function explained
+            </a>
             <p className="mt-4 text-xs text-silver/70">
               Android 7.0+ · Free · Landscape tablet recommended
             </p>
@@ -189,6 +200,25 @@ export default async function Home() {
           >
             Watch on YouTube →
           </a>
+
+          <div className="mt-8 grid items-center gap-5 rounded-2xl border border-line bg-panel/70 p-6 sm:grid-cols-[auto_1fr_auto]">
+            <Icon d={manualIcon} className="size-10 text-cyan" />
+            <div>
+              <h3 className="text-lg font-extrabold">User Manual (PDF)</h3>
+              <p className="mt-1 text-sm leading-relaxed text-silver">
+                39 pages: every page, key and hard key explained with
+                screenshots, plus step-by-step training drills and
+                troubleshooting.
+              </p>
+            </div>
+            <a
+              href={site.manualPath}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan px-6 py-4 text-sm font-extrabold tracking-wider text-black hover:brightness-110"
+            >
+              <Icon d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14" />
+              DOWNLOAD PDF
+            </a>
+          </div>
         </section>
 
         {/* The panel */}
