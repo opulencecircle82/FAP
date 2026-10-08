@@ -433,6 +433,141 @@ void main() {
     await teardown(tester);
   });
 
+  testWidgets('settings gear: deactivate & transfer locks the device', (
+    tester,
+  ) async {
+    var online = false;
+    var released = false;
+    AccessLock.androidIdReader = () async => 'aaaa000011112222';
+    AccessLock.clientFactory = () => MockClient((req) async {
+      if (!online) throw http.ClientException('no network');
+      final fn = req.url.pathSegments.last;
+      final Map<String, dynamic> body = switch (fn) {
+        'a320_my_license' => released
+            ? {'ok': false, 'reason': 'NO_LICENSE'}
+            : {'ok': true, 'code': 'A320-k7Rm9Qx2', 'used_at': '2026-10-08T06:00:00Z'},
+        'a320_release_license' => {'ok': true, 'code': 'A320-k7Rm9Qx2'},
+        'a320_restore_license' => {'ok': !released},
+        _ => {'ok': false},
+      };
+      if (fn == 'a320_release_license') released = true;
+      return http.Response(jsonEncode(body), 200);
+    });
+    // A licensed tablet.
+    final device = await AccessLock.deviceId();
+    SharedPreferences.setMockInitialValues({
+      'fap_license_v2': device,
+      'fap_license_code': 'A320-k7Rm9Qx2',
+    });
+    expect(await AccessLock.isUnlocked(), isTrue);
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(AisatFapApp(fap: fap, showDisclaimer: false));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    Future<void> settle() async {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 150)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    // Offline: the settings still show the saved code and the device id.
+    await tester.tap(find.byTooltip('Settings'));
+    await settle();
+    expect(find.text('A320-k7Rm9Qx2'), findsOneWidget);
+    expect(find.text(device), findsOneWidget);
+    expect(find.textContaining('Offline'), findsOneWidget);
+    await tester.tap(find.text('DEACTIVATE & TRANSFER LICENSE'));
+    await settle();
+    expect(
+      find.textContaining('Deactivating will lock this device'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('DEACTIVATE'));
+    await settle();
+    expect(find.textContaining('Deactivation must be done online'), findsOneWidget);
+    expect(await AccessLock.isUnlocked(), isTrue);
+    await tester.tap(find.byTooltip('Close'));
+    await settle();
+
+    // Online: shows the activation date; cancel keeps the license.
+    online = true;
+    await tester.tap(find.byTooltip('Settings'));
+    await settle();
+    expect(find.text('ACTIVATED'), findsOneWidget);
+    await shot(tester, 'settings_dialog');
+    await tester.tap(find.text('DEACTIVATE & TRANSFER LICENSE'));
+    await settle();
+    await tester.tap(find.text('CANCEL'));
+    await settle();
+    expect(released, isFalse);
+
+    // Confirm: the code is released and the app goes back to activation.
+    await tester.tap(find.text('DEACTIVATE & TRANSFER LICENSE'));
+    await settle();
+    await tester.tap(find.text('DEACTIVATE'));
+    await settle();
+    await settle();
+    expect(released, isTrue);
+    expect(find.text('ACTIVATE'), findsOneWidget);
+    expect(find.byTooltip('Settings'), findsNothing);
+    expect(await AccessLock.isUnlocked(), isFalse);
+    expect(await AccessLock.savedCode(), isNull);
+    await teardown(tester);
+  });
+
+  testWidgets('licensed device released elsewhere locks at start (online)', (
+    tester,
+  ) async {
+    AccessLock.androidIdReader = () async => 'aaaa000011112222';
+    final device = await AccessLock.deviceId();
+    SharedPreferences.setMockInitialValues({'fap_license_v2': device});
+    AccessLock.clientFactory = () => MockClient(
+      (_) async => http.Response(
+        jsonEncode({'ok': false, 'reason': 'NO_LICENSE'}),
+        200,
+      ),
+    );
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(
+      AisatFapApp(fap: fap, showDisclaimer: false, checkLicenseOnline: true),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ACTIVATE'), findsOneWidget);
+    await teardown(tester);
+  });
+
+  testWidgets('offline start never locks a licensed device', (tester) async {
+    AccessLock.androidIdReader = () async => 'aaaa000011112222';
+    final device = await AccessLock.deviceId();
+    SharedPreferences.setMockInitialValues({'fap_license_v2': device});
+    AccessLock.clientFactory = () =>
+        MockClient((_) async => throw http.ClientException('no network'));
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    fap = FapProvider(audio: FakeAudio(), random: Random(7));
+    await tester.pumpWidget(
+      AisatFapApp(fap: fap, showDisclaimer: false, checkLicenseOnline: true),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump();
+    expect(find.text('ACTIVATE'), findsNothing);
+    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(await AccessLock.isUnlocked(), isTrue);
+    await teardown(tester);
+  });
+
   testWidgets('alarm scenarios render', (tester) async {
     await boot(tester, const Size(1600, 1000));
 

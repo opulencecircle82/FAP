@@ -10,6 +10,9 @@ type Code = {
   used_at: string | null;
   device_id: string | null;
   created_at: string;
+  /** Set when the code was released for transfer to another device. */
+  released_at?: string | null;
+  transfer_count?: number;
 };
 
 const TOKEN_KEY = "a320_admin_token";
@@ -44,6 +47,7 @@ const errorText: Record<string, string> = {
   SERVER: "Server error. Please try again.",
   WRONG_PASSWORD: "Current password is wrong.",
   TOO_SHORT: "Username needs 3+ characters and password 8+ characters.",
+  NOT_USED: "That code is no longer active on a device (already released). Reload the page.",
 };
 
 function fmt(d: string | null) {
@@ -236,7 +240,15 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
     }
   };
 
-  const unused = useMemo(() => (codes ?? []).filter((c) => !c.is_used), [codes]);
+  // Released codes wait for their owner: not part of the 10 fresh codes.
+  const unused = useMemo(
+    () => (codes ?? []).filter((c) => !c.is_used && !c.released_at),
+    [codes],
+  );
+  const released = useMemo(
+    () => (codes ?? []).filter((c) => !c.is_used && !!c.released_at),
+    [codes],
+  );
   const used = useMemo(() => (codes ?? []).filter((c) => c.is_used), [codes]);
   const usedShown = useMemo(
     () => used.filter((c) => c.code.includes(query.trim())),
@@ -265,10 +277,11 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
 
   return (
     <div className="mt-4 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         {[
           ["UNUSED", unused.length, "text-fap-green"],
           ["USED", used.length, "text-fap-amber"],
+          ["RELEASED", released.length, "text-cyan"],
           ["TOTAL", (codes ?? []).length, "text-white"],
         ].map(([label, value, color]) => (
           <div key={label as string} className="rounded-2xl border border-line bg-panel/80 p-5">
@@ -281,7 +294,12 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
       </div>
       <ul className="list-disc space-y-1 pl-5 text-sm text-silver">
         <li>There are always exactly 10 unused codes. When one is used, a new one is created right away.</li>
-        <li>A used code can never be used again, on any device.</li>
+        <li>A code works on one device at a time. A used code cannot be given to someone else.</li>
+        <li>
+          Moving to a new tablet: the student opens Settings (gear) &gt; Deactivate &amp; Transfer,
+          then enters the same code on the new tablet. If the old tablet is broken, press
+          Release on the code below.
+        </li>
         <li>
           Codes are case-sensitive (capital letters, small letters and numbers), so give them
           exactly as shown. Activation needs an internet connection.
@@ -360,7 +378,11 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
             className="w-44 rounded-lg border border-line bg-ink px-3 py-2 text-sm outline-none focus:border-cyan"
           />
         </div>
-        <p className="mt-1 text-sm text-silver">Already activated. These can never be used again.</p>
+        <p className="mt-1 text-sm text-silver">
+          Activated on a device. Release frees a code for its owner&apos;s new device (use it when
+          the old device is broken or lost); the old device locks itself the next time it is
+          online.
+        </p>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="text-xs tracking-wider text-silver">
@@ -383,6 +405,63 @@ function Dashboard({ token, onExpired }: { token: string; onExpired: () => void 
                   <td className="font-mono text-xs text-silver" title={c.device_id ?? ""}>
                     {c.device_id ? `${c.device_id.slice(0, 8)}…` : "—"}
                   </td>
+                  <td className="space-x-2 text-right whitespace-nowrap">
+                    {copyBtn(c.code)}
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `Release ${c.code}? It will be unbound from its device and can be activated on a new device. Give it back only to the same owner.`,
+                          )
+                        )
+                          return;
+                        act(async () => {
+                          const r = await rpc<{ ok: boolean }>("a320_admin_release_code", {
+                            p_token: token,
+                            p_id: c.id,
+                          });
+                          if (!r?.ok) throw new RpcError("NOT_USED");
+                        }, `${c.code} was released. The owner can activate it on a new device.`);
+                      }}
+                      className="rounded-md border border-cyan/50 px-2 py-1 text-xs font-bold text-cyan disabled:opacity-50"
+                    >
+                      Release
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-cyan/40 bg-panel/80 p-5">
+        <h2 className="text-lg font-extrabold">
+          Released codes <span className="text-cyan">({codes ? released.length : "…"})</span>
+        </h2>
+        <p className="mt-1 text-sm text-silver">
+          Waiting to be activated on the owner&apos;s new device. They are not part of the 10
+          unused codes; do not give them to other students.
+        </p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[480px] text-left text-sm">
+            <thead className="text-xs tracking-wider text-silver">
+              <tr>
+                <th className="py-2">CODE</th>
+                <th>RELEASED AT</th>
+                <th>TRANSFERS</th>
+                <th className="text-right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codes === null && emptyRow("Loading…")}
+              {codes !== null && released.length === 0 && emptyRow("No released codes.")}
+              {released.map((c) => (
+                <tr key={c.id} className="border-t border-line">
+                  <td className="py-3 font-mono text-base font-bold tracking-wide">{c.code}</td>
+                  <td className="text-silver">{fmt(c.released_at ?? null)}</td>
+                  <td className="font-mono text-silver">{c.transfer_count ?? 0}</td>
                   <td className="text-right whitespace-nowrap">{copyBtn(c.code)}</td>
                 </tr>
               ))}

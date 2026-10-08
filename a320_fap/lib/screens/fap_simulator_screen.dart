@@ -24,6 +24,7 @@ import 'subscreens/sw_load_subscreen.dart';
 import 'subscreens/system_info_subscreen.dart';
 import 'subscreens/temperature_subscreen.dart';
 import 'subscreens/water_subscreen.dart';
+import 'settings_dialog.dart';
 import 'unlock_screen.dart';
 
 /// The FAP unit: metallic bezel, 16:9 touchscreen and hard-key strip.
@@ -31,7 +32,12 @@ import 'unlock_screen.dart';
 /// It is laid out once on a fixed design canvas and scaled to fit the
 /// device, so the panel looks identical on every tablet and browser.
 class FapSimulatorScreen extends StatelessWidget {
-  const FapSimulatorScreen({super.key, this.demo = false, this.onLicensed});
+  const FapSimulatorScreen({
+    super.key,
+    this.demo = false,
+    this.onLicensed,
+    this.onDeactivated,
+  });
 
   static const route = '/fap';
 
@@ -43,6 +49,9 @@ class FapSimulatorScreen extends StatelessWidget {
   final bool demo;
   final VoidCallback? onLicensed;
 
+  /// Settings > Deactivate & Transfer locked this device.
+  final VoidCallback? onDeactivated;
+
   @override
   Widget build(BuildContext context) {
     void askLicense() =>
@@ -50,31 +59,54 @@ class FapSimulatorScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF070D13),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            if (demo) _DemoBar(onEnterCode: askLicense),
-            Expanded(
-              child: DemoGate(
-                active: demo,
-                onBlocked: askLicense,
-                // Tight constraints so the panel scales UP on large screens
-                // too, not only down on small ones.
-                child: SizedBox.expand(
-                  child: FittedBox(
-                    fit: BoxFit.contain,
-                    child: SizedBox.fromSize(
-                      size: _deviceSize,
-                      child: const _Device(),
-                    ),
+            Positioned.fill(child: _panel(askLicense)),
+            // Simulator settings (license): a subtle gear in the corner,
+            // outside the FAP itself.
+            if (!demo)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: IconButton(
+                  tooltip: 'Settings',
+                  icon: const Icon(Icons.settings),
+                  iconSize: 22,
+                  color: Colors.white38,
+                  onPressed: () => showSettingsDialog(
+                    context,
+                    onDeactivated: () => onDeactivated?.call(),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _panel(VoidCallback askLicense) => Column(
+    children: [
+      if (demo) _DemoBar(onEnterCode: askLicense),
+      Expanded(
+        child: DemoGate(
+          active: demo,
+          onBlocked: askLicense,
+          // Tight constraints so the panel scales UP on large screens
+          // too, not only down on small ones.
+          child: SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox.fromSize(
+                size: _deviceSize,
+                child: const _Device(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _DemoBar extends StatelessWidget {

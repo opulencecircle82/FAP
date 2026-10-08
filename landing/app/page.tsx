@@ -303,6 +303,11 @@ export default async function Home() {
                 Ask your instructor for a code.
               </p>
               <p className="mt-2 text-sm leading-relaxed text-silver">
+                New tablet? Open Settings (gear icon) on the old tablet and tap{" "}
+                <b className="text-white">Deactivate &amp; Transfer License</b>, then
+                enter the same code on the new one.
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-silver">
                 No code yet? Try the free demo with code{" "}
                 <span className="font-mono text-cyan">A320-DEMO</span> (no
                 internet needed). The demo includes one lighting function

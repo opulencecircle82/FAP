@@ -35,14 +35,14 @@ class AccessLock {
   static const _licenseKey = 'fap_license_v2';
   static const _deviceKey = 'fap_device_id';
   static const _demoKey = 'fap_demo';
+  static const _codeKey = 'fap_license_code';
   static const _timeout = Duration(seconds: 15);
 
   /// Free demo code shown on the start screen. Works offline, is never sent
   /// to the server and unlocks only the demo functions.
   static const demoCode = 'A320-DEMO';
 
-  static bool isDemoCode(String code) =>
-      code.trim().toUpperCase() == demoCode;
+  static bool isDemoCode(String code) => code.trim().toUpperCase() == demoCode;
 
   /// Demo mode was chosen on this device (and no license is active).
   static Future<bool> isDemo() async {
@@ -113,20 +113,113 @@ class AccessLock {
 
   /// Activates [code] online; on success remembers this device. The code
   /// this device used before also works again after a reinstall.
-  static Future<LicenseResult> activate(String code) async =>
-      isDemoCode(code)
-      ? LicenseResult.invalid // the demo code is never a license
-      : _call('a320_redeem_license', (device) => {
-        'p_code': code.trim(),
-        'p_device': device,
-      });
+  static Future<LicenseResult> activate(String code) async {
+    if (isDemoCode(code)) return LicenseResult.invalid; // never a license
+    final r = await _call(
+      'a320_redeem_license',
+      (device) => {'p_code': code.trim(), 'p_device': device},
+    );
+    if (r.result == LicenseResult.ok) await _saveCode(code.trim());
+    return r.result;
+  }
 
   /// After a reinstall: unlocks the app if this device was activated
   /// before. [LicenseResult.invalid] means it was not.
-  static Future<LicenseResult> restore() async =>
-      _call('a320_restore_license', (device) => {'p_device': device});
+  static Future<LicenseResult> restore() async => (await _call(
+    'a320_restore_license',
+    (device) => {'p_device': device},
+  )).result;
 
-  static Future<LicenseResult> _call(
+  /// The license code saved on this device when it was activated (null for
+  /// devices activated before v3.6, or after a reinstall).
+  static Future<String?> savedCode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_codeKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> _saveCode(String code) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_codeKey, code);
+    } catch (_) {}
+  }
+
+  /// Settings: the license this device holds, read from the server.
+  /// [LicenseResult.invalid] means the server has no license for it.
+  static Future<({LicenseResult result, String? code, DateTime? usedAt})>
+  licenseInfo() async {
+    final r = await _rpc('a320_my_license', (device) => {'p_device': device});
+    final body = r.body;
+    if (r.result != LicenseResult.ok || body == null) {
+      return (result: r.result, code: null, usedAt: null);
+    }
+    final code = body['code'] as String?;
+    if (code != null) await _saveCode(code);
+    return (
+      result: LicenseResult.ok,
+      code: code,
+      usedAt: DateTime.tryParse('${body['used_at']}')?.toLocal(),
+    );
+  }
+
+  /// Settings > Deactivate & Transfer: releases this device's code on the
+  /// server (online only) so it can be activated on another device, then
+  /// locks this device. Also locks when the server says the code was
+  /// already released (for example by the admin).
+  static Future<LicenseResult> deactivate() async {
+    final r = await _rpc(
+      'a320_release_license',
+      (device) => {'p_device': device},
+    );
+    if (r.result == LicenseResult.ok || r.result == LicenseResult.invalid) {
+      await _clearLocal();
+      return LicenseResult.ok;
+    }
+    return r.result;
+  }
+
+  /// Background check while online: false only when the server explicitly
+  /// says this device no longer holds a license (released here or by the
+  /// admin). Offline or server errors never lock the app.
+  static Future<bool> stillLicensed() async {
+    final r = await _rpc('a320_my_license', (device) => {'p_device': device});
+    if (r.result != LicenseResult.invalid) return true;
+    await _clearLocal();
+    return false;
+  }
+
+  static Future<void> _clearLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_licenseKey);
+      await prefs.remove(_codeKey);
+      await prefs.remove(_demoKey);
+    } catch (_) {}
+  }
+
+  /// Calls [fn]; on `ok` marks this device as licensed.
+  static Future<({LicenseResult result, Map? body})> _call(
+    String fn,
+    Map<String, String> Function(String device) args,
+  ) async {
+    final r = await _rpc(fn, args);
+    if (r.result == LicenseResult.ok) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_licenseKey, r.device!);
+        await prefs.remove(_demoKey);
+      } catch (_) {
+        return (result: LicenseResult.error, body: r.body);
+      }
+    }
+    return (result: r.result, body: r.body);
+  }
+
+  static Future<({LicenseResult result, Map? body, String? device})> _rpc(
     String fn,
     Map<String, String> Function(String device) args,
   ) async {
@@ -143,27 +236,28 @@ class AccessLock {
             body: jsonEncode(args(device)),
           )
           .timeout(_timeout);
-      if (res.statusCode != 200) return LicenseResult.error;
-      final body = jsonDecode(res.body);
-      if (body is! Map) return LicenseResult.error;
-      if (body['ok'] == true) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_licenseKey, device);
-        await prefs.remove(_demoKey);
-        return LicenseResult.ok;
+      if (res.statusCode != 200) {
+        return (result: LicenseResult.error, body: null, device: device);
       }
-      return switch (body['reason']) {
-        null || 'INVALID' => LicenseResult.invalid,
-        'ALREADY_USED' => LicenseResult.alreadyUsed,
-        'TOO_MANY_ATTEMPTS' => LicenseResult.tooManyAttempts,
-        _ => LicenseResult.error,
-      };
+      final body = jsonDecode(res.body);
+      if (body is! Map) {
+        return (result: LicenseResult.error, body: null, device: device);
+      }
+      final result = body['ok'] == true
+          ? LicenseResult.ok
+          : switch (body['reason']) {
+              null || 'INVALID' || 'NO_LICENSE' => LicenseResult.invalid,
+              'ALREADY_USED' => LicenseResult.alreadyUsed,
+              'TOO_MANY_ATTEMPTS' => LicenseResult.tooManyAttempts,
+              _ => LicenseResult.error,
+            };
+      return (result: result, body: body, device: device);
     } on TimeoutException {
-      return LicenseResult.offline;
+      return (result: LicenseResult.offline, body: null, device: null);
     } on http.ClientException {
-      return LicenseResult.offline;
+      return (result: LicenseResult.offline, body: null, device: null);
     } catch (_) {
-      return LicenseResult.error;
+      return (result: LicenseResult.error, body: null, device: null);
     } finally {
       client.close();
     }

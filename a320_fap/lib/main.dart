@@ -29,7 +29,14 @@ Future<void> main() async {
   final unlocked = await AccessLock.isUnlocked();
   final demo = !unlocked && await AccessLock.isDemo();
 
-  runApp(AisatFapApp(fap: fap, unlocked: unlocked, demo: demo));
+  runApp(
+    AisatFapApp(
+      fap: fap,
+      unlocked: unlocked,
+      demo: demo,
+      checkLicenseOnline: unlocked,
+    ),
+  );
 }
 
 class AisatFapApp extends StatefulWidget {
@@ -39,6 +46,7 @@ class AisatFapApp extends StatefulWidget {
     this.unlocked = true,
     this.demo = false,
     this.showDisclaimer = true,
+    this.checkLicenseOnline = false,
   });
 
   final FapProvider fap;
@@ -52,6 +60,10 @@ class AisatFapApp extends StatefulWidget {
   /// The notice is shown at every start, after the license screen.
   final bool showDisclaimer;
 
+  /// In the background, ask the server whether this device still holds its
+  /// license (it may have been transferred). Never blocks start-up.
+  final bool checkLicenseOnline;
+
   @override
   State<AisatFapApp> createState() => _AisatFapAppState();
 }
@@ -62,6 +74,22 @@ class _AisatFapAppState extends State<AisatFapApp> {
   late final _unlocked = ValueNotifier<bool>(widget.unlocked);
   late final _demo = ValueNotifier<bool>(widget.demo);
   late final _agreed = ValueNotifier<bool>(!widget.showDisclaimer);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.checkLicenseOnline) _checkLicense();
+  }
+
+  Future<void> _checkLicense() async {
+    final still = await AccessLock.stillLicensed();
+    if (!still && mounted) _deactivated();
+  }
+
+  void _deactivated() {
+    _unlocked.value = false;
+    _demo.value = false;
+  }
 
   @override
   void dispose() {
@@ -94,6 +122,7 @@ class _AisatFapAppState extends State<AisatFapApp> {
           return FapSimulatorScreen(
             demo: !_unlocked.value,
             onLicensed: _licensed,
+            onDeactivated: _deactivated,
           );
         },
       ),

@@ -86,7 +86,7 @@
   <div class="sub">User Manual &amp; Function Guide</div>
   <img src="img/page_cabinStatus.jpg" alt="">
   <div class="meta">
-    <b>Version 3.5</b> · Android tablet app<br>
+    <b>Version 3.6</b> · Android tablet app<br>
     Every page, key and training drill of the Airbus A320 Cabin Intercommunication<br>
     Data System (CIDS) Flight Attendant Panel, explained step by step.<br><br>
     For academic, familiarization and training purposes only. Not for operational use.
@@ -174,8 +174,18 @@
   <ul>
     <li>Each code works on <b>one device only</b> and can never be used on another device.</li>
     <li><b>Reinstalling is safe.</b> If the app is uninstalled and installed again on the same tablet, it recognizes the device and unlocks automatically (online) without a new code. If the tablet is offline at that moment, connect it and tap <b>CHECK AGAIN</b>.</li>
-    <li>A factory reset of the tablet counts as a new device.</li>
+    <li>A factory reset of the tablet counts as a new device: move the license first (see below), or ask the administrator to release it.</li>
   </ul>
+
+  <h2>Moving your license to a new tablet</h2>
+  <figure class="small"><img src="img/settings_dialog.jpg" alt=""><figcaption>Settings (gear icon, top-right corner): license code, device ID and Deactivate &amp; Transfer.</figcaption></figure>
+  <ol class="steps">
+    <li>On the <b>old</b> tablet, connected to the internet, tap the <b>gear icon</b> in the top-right corner of the screen.</li>
+    <li>Settings shows your <b>license code</b>, the <b>device ID</b> and the activation date. Write down the code.</li>
+    <li>Tap <b>DEACTIVATE &amp; TRANSFER LICENSE</b> and confirm. The old tablet locks and returns to the activation screen.</li>
+    <li>On the <b>new</b> tablet, enter the same code and tap ACTIVATE.</li>
+  </ol>
+  <div class="note warn"><b>OLD TABLET BROKEN OR LOST?</b>Ask your instructor or administrator to <b>release</b> your code from the admin panel, then activate it on the new tablet. If the old tablet ever comes back online, it locks itself automatically.</div>
 
   <h2>Free demo</h2>
   <p>Without a license code you can try the simulator: tap <b>TRY DEMO</b> on the start screen, or enter the demo code <span class="mono">A320-DEMO</span>. No internet is needed.</p>
@@ -210,6 +220,7 @@
     <tr><td><span class="key">CABIN READY</span></td><td>Tells the flight crew the cabin is secured for take-off or landing. Green while active; press again to cancel.</td></tr>
     <tr><td>Page title</td><td>Name of the open page. Short notices temporarily replace the title; during an evacuation it shows <b>EVAC – PRESS EVAC RESET TO SILENCE</b> and flashes red.</td></tr>
     <tr><td><span class="key">FAP CONFIG</span></td><td>Simulator settings (not part of the aircraft FAP): temperature unit <b>CELSIUS / FAHRENHEIT</b> and <b>MUTE</b> all audio.</td></tr>
+    <tr><td>⚙ Gear icon</td><td>In the top-right corner of the tablet screen, outside the panel: license Settings (code, device ID, Deactivate &amp; Transfer). See Chapter 2.</td></tr>
   </table>
 
   <h2>Page tabs</h2>
@@ -623,6 +634,10 @@
   <p>No. Internet is needed only once, to activate the license code. After that the simulator runs fully offline.</p>
   <h3>I uninstalled the app. Do I need a new code?</h3>
   <p>No. Install it again on the same tablet and open it while online; it is restored automatically. A factory reset counts as a new device.</p>
+  <h3>I have a new tablet. Can I keep my code?</h3>
+  <p>Yes. On the old tablet open Settings (gear icon) and tap DEACTIVATE &amp; TRANSFER LICENSE (internet needed), then enter the same code on the new tablet. If the old tablet is broken, ask the administrator to release the code.</p>
+  <h3>The app went back to the activation screen by itself.</h3>
+  <p>The license was moved to another device (deactivated there or released by the administrator). Enter a valid code to activate again.</p>
   <h3>A page asks for an access code.</h3>
   <p>CABIN PROG, LAYOUT SELECT and LEVEL ADJUST use <span class="mono">318</span>; SW LOAD uses <span class="mono">813</span>.</p>
   <h3>The screen is black.</h3>
@@ -645,7 +660,7 @@
     <li><b>ACCURACY &amp; LIABILITY:</b> While modeled for realistic interaction, operational variances may exist. This software must NOT be used for real-world aircraft operation, checklist validation, or actual emergency procedures. Overdrive Interactive assumes no liability for misuse.</li>
   </ol>
   <div class="note warn"><b>ALWAYS</b>Follow your airline's cabin crew operations manual and your instructor's procedures.</div>
-  <p style="margin-top:14mm;text-align:center;color:var(--mute);font-size:9pt">© Overdrive Interactive · A320 FAP Simulator v3.5 · User Manual</p>
+  <p style="margin-top:14mm;text-align:center;color:var(--mute);font-size:9pt">© Overdrive Interactive · A320 FAP Simulator v3.6 · User Manual</p>
 </section>
 </main>
 </body>
