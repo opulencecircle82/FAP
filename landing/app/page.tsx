@@ -6,7 +6,7 @@ import { asset, site } from "./site";
 const features = [
   {
     title: "Offline Ready",
-    body: "No SQL / database needed. Everything runs on the tablet, even with no internet in the classroom.",
+    body: "Activate once online, then everything runs on the tablet, even with no internet in the classroom.",
     icon: "M3 3l18 18M8.5 8.5A5 5 0 0 0 6 18h11m3.4-1.6A4 4 0 0 0 18 10h-.5A6.5 6.5 0 0 0 10 5.2",
   },
   {
@@ -97,6 +97,7 @@ export default async function Home() {
         </span>
         <nav className="ml-auto hidden items-center gap-7 text-sm text-silver md:flex">
           <a href="#features" className="hover:text-white">Features</a>
+          <a href="#tutorial" className="hover:text-white">Tutorial</a>
           <a href="#panel" className="hover:text-white">The Panel</a>
           <a href="#download" className="hover:text-white">Download</a>
           <a href="#notice" className="hover:text-white">Notice</a>
@@ -130,11 +131,11 @@ export default async function Home() {
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
               <DownloadButton />
               <a
-                href={site.simulatorPath}
+                href="#tutorial"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-silver/60 px-6 py-4 text-sm font-extrabold tracking-wider hover:border-white hover:bg-white/5"
               >
                 <Icon d="M8 5v14l11-7z" />
-                TRY WEB SIMULATOR
+                WATCH TUTORIAL
               </a>
             </div>
             <p className="mt-4 text-xs text-silver/70">
@@ -165,6 +166,32 @@ export default async function Home() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Tutorial */}
+        <section id="tutorial" className="mx-auto max-w-6xl scroll-mt-8 px-4 pb-20 sm:px-8">
+          <SectionTitle
+            kicker="TUTORIAL"
+            title="See every function in action"
+            body="A full walk-through of the panel, page by page: lighting, audio and PRAM, doors and slides, water/waste, smoke and evacuation."
+          />
+          <div className="mt-8 overflow-hidden rounded-2xl border border-line bg-black shadow-[0_20px_60px_rgb(0_0_0/0.6)]">
+            <iframe
+              className="aspect-video w-full"
+              src={`https://www.youtube-nocookie.com/embed/${site.tutorialId}?rel=0`}
+              title="A320 FAP Simulator tutorial"
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+              loading="lazy"
+            />
+          </div>
+          <a
+            href={site.tutorialUrl}
+            className="mt-3 inline-block text-sm font-bold text-cyan hover:underline"
+          >
+            Watch on YouTube →
+          </a>
         </section>
 
         {/* The panel */}

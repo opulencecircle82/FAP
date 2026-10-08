@@ -19,7 +19,11 @@ export const site = {
   get releasesUrl() {
     return `${this.repoUrl}/releases`;
   },
-  simulatorPath: `${BASE_PATH}/simulator/#/fap`,
+  /** YouTube tutorial (school-free version). */
+  tutorialId: "KAeq-nrS088",
+  get tutorialUrl() {
+    return `https://www.youtube.com/watch?v=${this.tutorialId}`;
+  },
 };
 
 /** Prefix a public asset with the GitHub Pages base path. */
