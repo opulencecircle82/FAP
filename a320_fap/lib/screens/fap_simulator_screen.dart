@@ -42,7 +42,7 @@ class FapSimulatorScreen extends StatelessWidget {
   static const route = '/fap';
 
   static const _screenSize = Size(1280, 720);
-  static const _deviceSize = Size(1350, 940);
+  static const _deviceSize = Size(1350, 952);
 
   /// Demo version: only the [DemoAllowed] controls work; touching anything
   /// else asks for the license code.
@@ -59,33 +59,21 @@ class FapSimulatorScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF070D13),
       body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(child: _panel(askLicense)),
-            // Simulator settings (license): a subtle gear in the corner,
-            // outside the FAP itself.
-            if (!demo)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: IconButton(
-                  tooltip: 'Settings',
-                  icon: const Icon(Icons.settings),
-                  iconSize: 22,
-                  color: Colors.white38,
-                  onPressed: () => showSettingsDialog(
-                    context,
-                    onDeactivated: () => onDeactivated?.call(),
-                  ),
+        child: _panel(
+          askLicense,
+          // Licensed only: the demo has its own ENTER LICENSE CODE button.
+          demo
+              ? null
+              : () => showSettingsDialog(
+                  context,
+                  onDeactivated: () => onDeactivated?.call(),
                 ),
-              ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _panel(VoidCallback askLicense) => Column(
+  Widget _panel(VoidCallback askLicense, VoidCallback? onSettings) => Column(
     children: [
       if (demo) _DemoBar(onEnterCode: askLicense),
       Expanded(
@@ -99,7 +87,7 @@ class FapSimulatorScreen extends StatelessWidget {
               fit: BoxFit.contain,
               child: SizedBox.fromSize(
                 size: _deviceSize,
-                child: const _Device(),
+                child: _Device(onSettings: onSettings),
               ),
             ),
           ),
@@ -158,7 +146,10 @@ class _DemoBar extends StatelessWidget {
 }
 
 class _Device extends StatelessWidget {
-  const _Device();
+  const _Device({this.onSettings});
+
+  /// Simulator SETTINGS key in the top frame (license, transfer).
+  final VoidCallback? onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -186,13 +177,13 @@ class _Device extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const SizedBox(
-            height: 22,
-            child: Row(
+          SizedBox(
+            height: 34,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                _Screw(),
-                Spacer(),
-                Text(
+                const Row(children: [_Screw(), Spacer(), _Screw()]),
+                const Text(
                   'CIDS  FLIGHT ATTENDANT PANEL',
                   style: TextStyle(
                     color: Color(0xFF4B535C),
@@ -201,8 +192,13 @@ class _Device extends StatelessWidget {
                     letterSpacing: 3,
                   ),
                 ),
-                Spacer(),
-                _Screw(),
+                if (onSettings != null)
+                  Positioned(
+                    right: 22,
+                    top: 2,
+                    bottom: 2,
+                    child: _SettingsKey(onTap: onSettings!),
+                  ),
               ],
             ),
           ),
@@ -221,6 +217,46 @@ class _Device extends StatelessWidget {
           const SizedBox(height: 14),
           const Expanded(child: HardwareBezelStrip()),
         ],
+      ),
+    );
+  }
+}
+
+/// Simulator settings key on the panel frame (not part of the real FAP).
+class _SettingsKey extends StatelessWidget {
+  const _SettingsKey({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Settings',
+      child: Material(
+        color: const Color(0xFF2B3640),
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.settings, size: 18, color: FapColors.cyan),
+                SizedBox(width: 6),
+                Text(
+                  'SETTINGS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

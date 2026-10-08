@@ -44,8 +44,14 @@ const pramLibrary = <PramItem>[
         'If cabin pressure is lost, oxygen masks will drop from the panel '
         'above you. Pull the mask towards you, place it over your nose and '
         'mouth, and breathe normally. Secure your own mask before assisting '
-        'others. Your life vest is located under your seat. Thank you for '
-        'your attention.',
+        'others. Your life vest is located under your seat. To put it on, '
+        'slip it over your head, then fasten the straps around your waist '
+        'and pull them tight. Do not inflate the life vest inside the '
+        'aircraft. As you leave the aircraft, pull the red tabs firmly '
+        'downwards and the life vest will inflate automatically. If it does '
+        'not inflate, or needs more air, blow into the mouthpieces. The life '
+        'vest is fitted with a light and a whistle to attract attention. '
+        'Thank you for your attention.',
   ),
   PramItem(
     id: 'nosmoking',

@@ -303,7 +303,7 @@ export default async function Home() {
                 Ask your instructor for a code.
               </p>
               <p className="mt-2 text-sm leading-relaxed text-silver">
-                New tablet? Open Settings (gear icon) on the old tablet and tap{" "}
+                New tablet? On the old tablet tap ⚙ SETTINGS on the panel frame, then{" "}
                 <b className="text-white">Deactivate &amp; Transfer License</b>, then
                 enter the same code on the new one.
               </p>

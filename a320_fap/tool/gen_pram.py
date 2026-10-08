@@ -1,9 +1,11 @@
 """Records the PRAM announcements (female voice, en-US-JennyNeural) into
 assets/pram/<id>.mp3, using the scripts in lib/models/pram_item.dart.
 
-    python tool/gen_pram.py
+    python tool/gen_pram.py            # all announcements
+    python tool/gen_pram.py safety     # only the listed ids
 """
 import asyncio
+import sys
 import os
 import re
 
@@ -29,7 +31,10 @@ def read_scripts():
 async def main():
     out = os.path.join(ROOT, "assets", "pram")
     os.makedirs(out, exist_ok=True)
+    only = set(sys.argv[1:])
     for pid, text in read_scripts().items():
+        if only and pid not in only:
+            continue
         path = os.path.join(out, pid + ".mp3")
         await edge_tts.Communicate(text, VOICE, rate="+0%").save(path)
         print(pid, os.path.getsize(path), "bytes")
